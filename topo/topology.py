@@ -40,7 +40,7 @@ try:
     from mininet.cli import CLI
     from mininet.log import setLogLevel, info
     from mininet.net import Mininet
-    from mininet.node import Controller, OVSKernelSwitch, Host
+    from mininet.node import OVSKernelSwitch, Host, RemoteController
     from mininet.link import TCLink
     from mininet.util import dumpNodeConnections
     MININET_AVAILABLE = True
@@ -80,18 +80,30 @@ class PongTopology:
         log.addHandler(handler)
         log.setLevel(logging.INFO)
 
-    def build_topology(self):
-        """Build Mininet topology with OVS switches."""
+    def build_topology(self, controller_ip='127.0.0.1', controller_port=6633):
+        """Build Mininet topology with OVS switches.
+        
+        Args:
+            controller_ip: IP of remote Ryu controller (default: localhost)
+            controller_port: Port of remote controller (default: 6633)
+        """
         if not MININET_AVAILABLE:
             log.error("Mininet not available on this system")
             log.info("(Requires Linux with kernel module support)")
             return False
 
         log.info("Building Mininet topology...")
-        self.net = Mininet(controller=Controller, switch=OVSKernelSwitch, link=TCLink)
+        log.info(f"Using remote controller at {controller_ip}:{controller_port}")
+        
+        self.net = Mininet(
+            switch=OVSKernelSwitch,
+            link=TCLink,
+            controller=lambda name: RemoteController(name, ip=controller_ip, port=controller_port),
+            build=False
+        )
 
         # Add controller
-        c0 = self.net.addController('c0')
+        c0 = self.net.addController('c0', controller=RemoteController, ip=controller_ip, port=controller_port)
 
         # Add switches
         s1 = self.net.addSwitch('s1')
@@ -131,9 +143,16 @@ class PongTopology:
 
         # Start network
         self.net.build()
+        log.info("Starting controller...")
         c0.start()
+        time.sleep(2)  # Give controller time to start
+        
+        log.info("Starting switches...")
         for s in [s1, s2, s3]:
             s.start([c0])
+        time.sleep(2)
+            
+        log.info("Starting Mininet network...")
         self.net.start()
 
         log.info("Topology built successfully")
@@ -227,17 +246,17 @@ class PongTopology:
 
         return all_ok
 
-    def run_check_mode(self):
+    def run_check_mode(self, controller_ip='127.0.0.1', controller_port=6633):
         """Run connectivity checks only."""
-        if not self.build_topology():
+        if not self.build_topology(controller_ip=controller_ip, controller_port=controller_port):
             return False
 
         log.info("Running in CHECK mode")
         return self.check_connectivity()
 
-    def run_trial(self, duration=60):
+    def run_trial(self, duration=60, controller_ip='127.0.0.1', controller_port=6633):
         """Run full trial with game and background traffic."""
-        if not self.build_topology():
+        if not self.build_topology(controller_ip=controller_ip, controller_port=controller_port):
             return False
 
         self.results_dir = tempfile.mkdtemp(prefix='pong_trial_')
@@ -306,6 +325,10 @@ def main():
                        help='Operation mode')
     parser.add_argument('--duration', type=int, default=60,
                        help='Trial duration (seconds)')
+    parser.add_argument('--controller', default='127.0.0.1',
+                       help='Ryu controller IP (default: 127.0.0.1)')
+    parser.add_argument('--controller-port', type=int, default=6633,
+                       help='Ryu controller port (default: 6633)')
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose logging')
 
@@ -329,13 +352,13 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     if args.mode == 'check':
-        success = topo.run_check_mode()
+        success = topo.run_check_mode(controller_ip=args.controller, controller_port=args.controller_port)
         sys.exit(0 if success else 1)
     elif args.mode == 'run':
-        success = topo.run_trial(args.duration)
+        success = topo.run_trial(args.duration, controller_ip=args.controller, controller_port=args.controller_port)
         sys.exit(0 if success else 1)
     elif args.mode == 'cli':
-        if not topo.build_topology():
+        if not topo.build_topology(controller_ip=args.controller, controller_port=args.controller_port):
             sys.exit(1)
         CLI(topo.net)
         topo.cleanup()
