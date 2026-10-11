@@ -22,6 +22,26 @@ Any mix of humans and bots works; a game starts as soon as 2 players are in.
 `GAME_DROP_PROB=0.1` (or `--drop 0.1`) makes a process discard 10% of received packets,
 for testing loss handling without Mininet.
 
+## Mininet topology (requires Linux with Mininet installed)
+
+    python3 topo/topology.py --mode check      # verify connectivity
+    python3 topo/topology.py --mode run --duration 60   # full trial
+    python3 topo/topology.py --mode cli        # interactive Mininet CLI
+
+The topology uses 3 OVS switches with a bottleneck link between s2-s3
+(10 Mbps, 5 ms delay). 4 player hosts, 2 background traffic hosts,
+and 1 server host. Background traffic is generated with iperf3.
+
+## Analysis
+
+    python3 analysis/parse_results.py results/raw/*.csv --summary
+
+Parses CSV logs from game clients and server to compute:
+- Packet loss ratio
+- Average latency (one-way delay)
+- Jitter (mean absolute difference between consecutive delays)
+- Average RTT (from PING/PONG samples)
+
 ## Layout
     game/config.py    constants shared with Mininet + Ryu (UDP port 5000, tick rate, ...)
     game/protocol.py  wire format
@@ -31,3 +51,5 @@ for testing loss handling without Mininet.
     game/client.py    UDP client (human or bot)
     game/bot.py       computer player
     game/tui.py       curses UI + keyboard input
+    topo/topology.py  Mininet topology + experiment orchestration
+    analysis/parse_results.py  latency/jitter/loss analysis from CSV logs
