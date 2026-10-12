@@ -23,6 +23,7 @@ from typing import Dict, List, Optional, Tuple
 from . import config as C
 from . import protocol as P
 from .seq import NEW, SeqTracker
+from .signals import exit_on_signals
 from .state import GameState
 
 log = logging.getLogger("server")
@@ -215,6 +216,7 @@ def main(argv=None) -> None:
     ap.add_argument("--stats-interval", type=float, default=5.0, help="seconds between status lines (0=off)")
     args = ap.parse_args(argv)
 
+    exit_on_signals()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s", datefmt="%H:%M:%S")
     server = GameServer(args.host, args.port, log_path=args.log, drop_prob=args.drop)
     server.start()

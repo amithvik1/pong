@@ -25,6 +25,7 @@ from typing import Callable, Optional
 from . import config as C
 from . import protocol as P
 from .seq import NEW, SeqTracker
+from .signals import exit_on_signals
 
 log = logging.getLogger("client")
 InputFn = Callable[[Optional[P.Snapshot], int], int]
@@ -239,6 +240,7 @@ def main(argv=None) -> int:
     if args.headless and not args.bot:
         ap.error("--headless needs --bot (a human cannot play without the UI)")
 
+    exit_on_signals()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s", datefmt="%H:%M:%S",
                         stream=sys.stderr)
     human = None
