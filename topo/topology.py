@@ -45,6 +45,13 @@ if os.path.isdir(os.path.join(ROOT, "mininet")):
     sys.exit("ERROR: %s/mininet exists and would shadow the real mininet package.\n"
              "Rename it:  mv %s/mininet %s/topo" % (ROOT, ROOT, ROOT))
 
+_REQUIRED = ["game/__init__.py", "game/config.py", "game/protocol.py", "game/server.py",
+             "game/client.py", "analysis/metrics.py"]
+_missing = [f for f in _REQUIRED if not os.path.exists(os.path.join(ROOT, f))]
+if _missing:
+    sys.exit("ERROR: these files are missing from %s:\n  %s\n"
+             "Unzip pong_full.zip over the project (see README) and try again." % (ROOT, "\n  ".join(_missing)))
+
 from analysis import metrics                                  # noqa: E402
 from game import config as C                                  # noqa: E402
 
