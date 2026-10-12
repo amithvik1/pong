@@ -21,6 +21,12 @@ Run from the pong/ folder, as root:
     sudo python3 topo/topology.py --cli --bots 3      # 3 bots + a server, you play from another tab
     sudo python3 topo/topology.py --cli               # empty network + Mininet prompt
 
+With a controller (start Ryu FIRST, in another terminal, from the pong/ folder):
+    PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/qos_switch.py
+    sudo python3 -B topo/topology.py --smoke 15 --bg-mbps 20 --controller remote --qos priority
+(baseline: sdn/baseline_switch.py with --qos plain).  Do not run `mn -c` while Ryu is up:
+it kills ryu-manager.  This script's own cleanup leaves it alone.
+
 Options:
     --controller none|remote   none = switches act as plain learning switches (default)
                                remote = wait for a Ryu controller on 127.0.0.1:6653
@@ -32,6 +38,7 @@ Options:
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -55,7 +62,6 @@ if _missing:
 from analysis import metrics                                  # noqa: E402
 from game import config as C                                  # noqa: E402
 
-from mininet.clean import cleanup                             # noqa: E402
 from mininet.cli import CLI                                   # noqa: E402
 from mininet.link import Link                                 # noqa: E402
 from mininet.log import error, info, setLogLevel              # noqa: E402
@@ -72,11 +78,28 @@ SERVER_SIDE = ["hs", "hb2"]                        # attached to s2
 BOTTLENECK_BPS = 10_000_000
 GAME_MIN_BPS = 4_000_000          # priority mode: guaranteed to the game queue
 BG_MIN_BPS = 1_000_000            # priority mode: guaranteed to everything else
-QUEUE_GAME = 1
-QUEUE_BG = 2
+QUEUE_GAME = C.QUEUE_GAME
+QUEUE_BG = C.QUEUE_BG
 
 PY = sys.executable
 ENV = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONUNBUFFERED="1")
+
+
+# --------------------------------------------------------------------------- cleanup
+
+def cleanup_stale():
+    """Remove what a crashed earlier run may have left behind.
+
+    Deliberately NOT mininet.clean.cleanup() / `mn -c`: those also `killall ryu-manager`,
+    which would kill the controller you started before running this script, and delete
+    every OVS bridge on the machine.  This only touches our own bridges, hosts and links.
+    """
+    subprocess.run(["pkill", "-9", "-f", "^bash --norc --noediting -is mininet:"], capture_output=True)  # stale host shells
+    for br in ("s1", "s2"):
+        subprocess.run(["ovs-vsctl", "--if-exists", "del-br", br], capture_output=True)
+    links = subprocess.run(["ip", "-o", "link", "show"], capture_output=True, text=True).stdout
+    for name in set(re.findall(r"\b((?:h[1-4]|hb[12]|hs|s[12])-eth\d+)\b", links)):
+        subprocess.run(["ip", "link", "del", name], capture_output=True)
 
 
 # --------------------------------------------------------------------------- build
@@ -160,6 +183,33 @@ def configure_qos(net, mode="plain", rate=BOTTLENECK_BPS):
             time.sleep(0.2)
 
 
+CLASS_LABELS = {"1:%x" % (QUEUE_GAME + 1): "queue %d (game)" % QUEUE_GAME,
+                "1:%x" % (QUEUE_BG + 1): "queue %d (other)" % QUEUE_BG,
+                "1:1": "queue 0 (default)",
+                "1:fffe": "root (all traffic)"}
+
+
+def diagnostics(net, qos, controller):
+    """Print where the traffic actually went: tc class counters and the controller's flows."""
+    if qos == "priority":
+        print("\nPer-queue counters on the bottleneck ports (OVS linux-htb classes):")
+        print("  %-6s %-24s %9s %12s %9s" % ("port", "class", "packets", "bytes", "dropped"))
+        for _sw, port in bottleneck_ports(net):
+            out = subprocess.run(["tc", "-s", "class", "show", "dev", port], capture_output=True, text=True).stdout
+            for cid, nbytes, pkts, drops in re.findall(
+                    r"class htb (1:\w+) .*?\n\s*Sent (\d+) bytes (\d+) pkt \(dropped (\d+)", out):
+                print("  %-6s %-24s %9s %12s %9s" % (port, CLASS_LABELS.get(cid, cid), pkts, nbytes, drops))
+    if controller == "remote":
+        print("\nQoS flows installed by the controller on s1:")
+        out = subprocess.run(["ovs-ofctl", "-O", "OpenFlow13", "dump-flows", "s1"],
+                             capture_output=True, text=True).stdout
+        lines = [l.strip() for l in out.splitlines() if "set_queue" in l]
+        for l in lines[:8]:
+            print("  " + re.sub(r"cookie=\S+ |duration=\S+ |table=\d+, |idle_age=\S+ ?|hard_age=\S+ ?|n_bytes=\S+ ", "", l))
+        if not lines:
+            print("  (none: this controller does not set queues)")
+
+
 def measure_bottleneck(net, seconds=3):
     """TCP throughput hb1->hb2 and hb2->hb1 in Mbit/s (None if iperf3 failed)."""
     hb1, hb2 = net.get("hb1"), net.get("hb2")
@@ -228,11 +278,24 @@ def start_bot(net, procs, name, outdir, seed, duration=0):
 
 # --------------------------------------------------------------------------- modes
 
-def run_smoke(net, procs, seconds, outdir):
+def start_background(net, procs, outdir, mbps, seconds):
+    """UDP iperf3 in BOTH directions between hb1 and hb2, to saturate the bottleneck."""
+    hb1, hb2 = net.get("hb1"), net.get("hb2")
+    procs.start(hb2, ["iperf3", "-s"], os.path.join(outdir, "iperf_server.out"))
+    time.sleep(0.5)
+    procs.start(hb1, ["iperf3", "-c", hb2.IP(), "-u", "-b", "%gM" % mbps, "-t", seconds, "--bidir"],
+                os.path.join(outdir, "iperf_client.out"))
+
+
+def run_smoke(net, procs, seconds, outdir, bg_mbps=0.0):
     info("*** Starting game server on hs and 4 bots for %d s\n" % seconds)
     start_server(net, procs, outdir)
     time.sleep(1.0)
     bots = [start_bot(net, procs, name, outdir, seed=i + 1, duration=seconds) for i, name in enumerate(PLAYERS)]
+    if bg_mbps:
+        time.sleep(1.5)                           # let every bot join before the network is flooded
+        info("*** Background traffic: %g Mbit/s UDP each way for %d s\n" % (bg_mbps, seconds - 2))
+        start_background(net, procs, outdir, bg_mbps, seconds - 2)
     for p in bots:
         p.wait(timeout=seconds + 15)
     procs.stop_all()
@@ -247,7 +310,9 @@ def run_smoke(net, procs, seconds, outdir):
             ok = False
             continue
         entries.append((name + " (broadcasts)", s))
-        if s["n"] < 0.8 * seconds * C.TICK_HZ or s["loss_pct"] > 5:
+        if bg_mbps:                                   # congested run: loss is the result, not a failure
+            ok = ok and s["n"] > 0
+        elif s["n"] < 0.8 * seconds * C.TICK_HZ or s["loss_pct"] > 5:
             ok = False
     try:
         for slot, s in metrics.summarize_server(os.path.join(outdir, "server.csv")).items():
@@ -286,6 +351,8 @@ def main():
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--smoke", type=int, metavar="SECONDS", help="automated check of the whole setup")
     mode.add_argument("--cli", action="store_true", help="start the network and open the Mininet prompt")
+    ap.add_argument("--bg-mbps", type=float, default=0.0,
+                    help="(--smoke) add UDP background traffic of this rate in each direction")
     ap.add_argument("--bots", type=int, default=0, choices=range(0, 5), help="(--cli) bots to start, 0-4")
     ap.add_argument("--controller", choices=("none", "remote"), default="none")
     ap.add_argument("--controller-ip", default="127.0.0.1")
@@ -302,7 +369,7 @@ def main():
     rate = int(args.rate_mbps * 1e6)
     outdir = args.out or os.path.join(ROOT, "results", "raw", "smoke" if args.smoke else "demo")
 
-    cleanup()                                     # remove leftovers from any crashed earlier run
+    cleanup_stale()                               # leftovers from a crashed earlier run (keeps Ryu alive)
     net = build(args.controller, args.controller_ip, args.controller_port, args.datapath)
     procs = Procs()
     status = 0
@@ -323,7 +390,8 @@ def main():
             tput = measure_bottleneck(net)
             for label, mbps in tput.items():
                 print("    %-30s %s" % (label, "%.2f Mbit/s" % mbps if mbps is not None else "iperf3 failed"))
-            game_ok = run_smoke(net, procs, args.smoke, outdir)
+            game_ok = run_smoke(net, procs, args.smoke, outdir, args.bg_mbps)
+            diagnostics(net, args.qos, args.controller)
             shaped_ok = args.qos == "none" or all(
                 m is not None and 0.6 * rate / 1e6 <= m <= 1.05 * rate / 1e6 for m in tput.values())
             print("\nRESULT: ping %s | bottleneck %s | game %s" % (
