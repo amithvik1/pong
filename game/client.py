@@ -232,6 +232,7 @@ def main(argv=None) -> int:
     ap.add_argument("--log", help="CSV of every broadcast received (for latency/jitter/loss analysis)")
     ap.add_argument("--sticky", action="store_true",
                     help="keys set a direction that persists until you press space or the opposite key")
+    ap.add_argument("--ascii", action="store_true", help="plain ASCII graphics (for terminals without Unicode)")
     ap.add_argument("--seed", type=int, help="bot random seed")
     ap.add_argument("--drop", type=float, default=float(os.environ.get("GAME_DROP_PROB", "0")),
                     help="testing aid: drop this fraction of received packets (or env GAME_DROP_PROB)")
@@ -267,7 +268,7 @@ def main(argv=None) -> int:
                 time.sleep(0.2)
         else:
             from .tui import run
-            run(client, human, args.duration)
+            run(client, human, args.duration, ascii_mode=True if args.ascii else None)
     except KeyboardInterrupt:
         pass
     finally:
