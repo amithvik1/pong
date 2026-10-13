@@ -230,8 +230,11 @@ def main(argv=None) -> int:
     ap.add_argument("--headless", action="store_true", help="no UI (bots only) - for experiments")
     ap.add_argument("--duration", type=float, default=0, help="leave after N seconds (0 = until you quit)")
     ap.add_argument("--log", help="CSV of every broadcast received (for latency/jitter/loss analysis)")
-    ap.add_argument("--sticky", action="store_true",
-                    help="keys set a direction that persists until you press space or the opposite key")
+    sticky_group = ap.add_mutually_exclusive_group()
+    sticky_group.add_argument("--sticky", action="store_true",
+                             help="keys set a direction that persists until you press space or the opposite key")
+    sticky_group.add_argument("--hold", action="store_false", dest="sticky", default=False,
+                             help="move only while the key repeats (default)")
     ap.add_argument("--ascii", action="store_true", help="plain ASCII graphics (for terminals without Unicode)")
     ap.add_argument("--seed", type=int, help="bot random seed")
     ap.add_argument("--drop", type=float, default=float(os.environ.get("GAME_DROP_PROB", "0")),

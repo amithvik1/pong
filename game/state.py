@@ -119,13 +119,17 @@ class GameState:
         self.ball_x += self.vx * dt
         self.ball_y += self.vy * dt
         r = C.BALL_RADIUS
-        if self.ball_x - r <= 0 and self.vx < 0 and self._wall_hit(0, self.ball_y):
+        if self.ball_x - r <= 0 and self.vx < 0:
+            self._wall_hit(0, self.ball_y)
             return
-        if self.ball_x + r >= 1 and self.vx > 0 and self._wall_hit(1, self.ball_y):
+        if self.ball_x + r >= 1 and self.vx > 0:
+            self._wall_hit(1, self.ball_y)
             return
-        if self.ball_y - r <= 0 and self.vy < 0 and self._wall_hit(2, self.ball_x):
+        if self.ball_y - r <= 0 and self.vy < 0:
+            self._wall_hit(2, self.ball_x)
             return
-        if self.ball_y + r >= 1 and self.vy > 0 and self._wall_hit(3, self.ball_x):
+        if self.ball_y + r >= 1 and self.vy > 0:
+            self._wall_hit(3, self.ball_x)
             return
 
     def _wall_hit(self, slot: int, coord: float) -> bool:

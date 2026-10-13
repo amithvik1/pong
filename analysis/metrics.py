@@ -31,11 +31,29 @@ def _percentile(sorted_vals: List[float], p: float) -> float:
     return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (k - lo)
 
 
-def summarize(rows: Iterable[Row]) -> Dict[str, float]:
-    """Summarise ONE packet stream.  `rows` must be in arrival order."""
+def summarize(rows: Iterable[Row], warmup: float = 0.0, tail: float = 0.0) -> Dict[str, float]:
+    """Summarise ONE packet stream.  `rows` must be in arrival order.
+    
+    Excludes the first `warmup` seconds and last `tail` seconds based on recv_time.
+    """
+    rows = list(rows)
+    if not rows:
+        return {"n": 0, "expected": 0, "lost": 0, "loss_pct": 0.0,
+                "delay_mean_ms": 0.0, "delay_p50_ms": 0.0, "delay_p95_ms": 0.0,
+                "delay_max_ms": 0.0, "jitter_ms": 0.0}
+    
+    recv_times = [r[1] for r in rows]
+    t_min, t_max = min(recv_times), max(recv_times)
+    t_start = t_min + warmup
+    t_end = t_max - tail
+    
     seqs = set()
     delays: List[float] = []
     for kind, recv, seq, send in rows:
+        if warmup > 0 and recv < t_start:
+            continue
+        if tail > 0 and recv > t_end:
+            continue
         if kind in ARRIVED:
             seqs.add(seq)
             delays.append((recv - send) * 1000.0)
@@ -81,9 +99,9 @@ def read_server_csv(path: str) -> Dict[int, List[Row]]:
     return out
 
 
-def summarize_client(path: str) -> Dict[str, float]:
+def summarize_client(path: str, warmup: float = 0.0, tail: float = 0.0) -> Dict[str, float]:
     rows, rtts = read_client_csv(path)
-    s = summarize(rows)
+    s = summarize(rows, warmup=warmup, tail=tail)
     ordered = sorted(rtts)
     s["rtt_n"] = len(rtts)
     s["rtt_mean_ms"] = sum(rtts) / len(rtts) if rtts else 0.0
@@ -91,8 +109,8 @@ def summarize_client(path: str) -> Dict[str, float]:
     return s
 
 
-def summarize_server(path: str) -> Dict[int, Dict[str, float]]:
-    return {slot: summarize(rows) for slot, rows in sorted(read_server_csv(path).items())}
+def summarize_server(path: str, warmup: float = 0.0, tail: float = 0.0) -> Dict[int, Dict[str, float]]:
+    return {slot: summarize(rows, warmup=warmup, tail=tail) for slot, rows in sorted(read_server_csv(path).items())}
 
 
 def format_table(entries: List[Tuple[str, Dict[str, float]]]) -> str:

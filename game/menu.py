@@ -49,7 +49,7 @@ ITEMS = (("local", "Play vs. bots"),
 class Settings:
     host: str = "127.0.0.1"
     port: int = C.GAME_PORT
-    sticky: bool = True
+    sticky: bool = False
     skill: int = 1                   # index into SKILLS
     graphics: int = 0                # index into GRAPHICS
     selected: int = 0                # last menu row

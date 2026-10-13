@@ -146,6 +146,78 @@ def plot_server_delay_by_bg(data, out_path):
     plt.close(fig)
 
 
+def plot_server_p95_by_bg(data, out_path):
+    bg_order = ["none", "moderate", "heavy"]
+    modes = ["baseline", "priority"]
+    x = range(len(bg_order))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for i, mode in enumerate(modes):
+        vals = []
+        for bg in bg_order:
+            d = [r for r in data if r["mode"] == mode and r["bg"] == bg and r["metric"] == "server_delay_p95_ms"]
+            vals.append(d[0]["mean"] if d else 0)
+        offset = -width / 2 + i * width
+        ax.bar([xx + offset for xx in x], vals, width, label=mode, color=COLORS[mode], alpha=0.8, edgecolor="black")
+    ax.set_xticks(x)
+    ax.set_xticklabels(bg_order)
+    ax.set_ylabel("Server p95 delay (ms)")
+    ax.set_title("Server-side p95 delay by background level")
+    ax.legend()
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_server_jitter_by_bg(data, out_path):
+    bg_order = ["none", "moderate", "heavy"]
+    modes = ["baseline", "priority"]
+    x = range(len(bg_order))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for i, mode in enumerate(modes):
+        vals = []
+        for bg in bg_order:
+            d = [r for r in data if r["mode"] == mode and r["bg"] == bg and r["metric"] == "server_jitter_ms"]
+            vals.append(d[0]["mean"] if d else 0)
+        offset = -width / 2 + i * width
+        ax.bar([xx + offset for xx in x], vals, width, label=mode, color=COLORS[mode], alpha=0.8, edgecolor="black")
+    ax.set_xticks(x)
+    ax.set_xticklabels(bg_order)
+    ax.set_ylabel("Server jitter (ms)")
+    ax.set_title("Server-side jitter by background level")
+    ax.legend()
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_server_loss_by_bg(data, out_path):
+    bg_order = ["none", "moderate", "heavy"]
+    modes = ["baseline", "priority"]
+    x = range(len(bg_order))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for i, mode in enumerate(modes):
+        vals = []
+        for bg in bg_order:
+            d = [r for r in data if r["mode"] == mode and r["bg"] == bg and r["metric"] == "server_loss_pct"]
+            vals.append(d[0]["mean"] if d else 0)
+        offset = -width / 2 + i * width
+        ax.bar([xx + offset for xx in x], vals, width, label=mode, color=COLORS[mode], alpha=0.8, edgecolor="black")
+    ax.set_xticks(x)
+    ax.set_xticklabels(bg_order)
+    ax.set_ylabel("Server loss %")
+    ax.set_title("Server-side packet loss by background level")
+    ax.legend()
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def plot_delay_vs_players(data, out_path):
     # Heavy load only, delay_mean_ms
     heavy = [r for r in data if r["bg"] == "heavy" and r["metric"] == "delay_mean_ms"]
@@ -185,6 +257,9 @@ def main(argv=None) -> int:
     plot_jitter_by_bg(data, os.path.join(args.out_dir, "jitter_by_bg.png"))
     plot_loss_by_bg(data, os.path.join(args.out_dir, "loss_by_bg.png"))
     plot_server_delay_by_bg(data, os.path.join(args.out_dir, "server_delay_by_bg.png"))
+    plot_server_p95_by_bg(data, os.path.join(args.out_dir, "server_p95_by_bg.png"))
+    plot_server_jitter_by_bg(data, os.path.join(args.out_dir, "server_jitter_by_bg.png"))
+    plot_server_loss_by_bg(data, os.path.join(args.out_dir, "server_loss_by_bg.png"))
     plot_delay_vs_players(data, os.path.join(args.out_dir, "delay_vs_players.png"))
 
     print("Graphs saved to %s/" % args.out_dir)

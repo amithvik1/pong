@@ -119,7 +119,7 @@ class Layout:
         r = min(rows - (5 + footer_h), (cols - 2) // 2, MAX_SIDE // 2)
         self.R = max(r, 0)
         self.N = 2 * self.R
-        self.ok = self.R >= 10 and cols >= MIN_COLS
+        self.ok = self.R >= 10 and cols >= MIN_COLS and rows >= MIN_ROWS
         self.x0 = max(0, (cols - (self.N + 2)) // 2)      # frame's left column
         self.top = 2
         self.ay = 3                                       # first arena row
