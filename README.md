@@ -22,6 +22,29 @@ Any mix of humans and bots works; a game starts as soon as 2 players are in.
 `GAME_DROP_PROB=0.1` (or `--drop 0.1`) makes a process discard 10% of received packets,
 for testing loss handling without Mininet.
 
+## Mininet (run in the Ubuntu VM, as root)
+    sudo apt install -y ethtool                              # once
+    sudo python3 -B topo/topology.py --smoke 15              # automated check of the whole setup
+    sudo python3 -B topo/topology.py --cli --bots 3          # 3 bots + server; you join from another tab
+    python3 -m analysis.metrics results/raw/smoke/*.csv      # latency / jitter / loss table
+
+Topology: h1-h4 (players) and hb1 (background source) on s1; hs (server) and hb2 (background
+sink) on s2; s1<->s2 is the 10 Mbit/s bottleneck, shaped in both directions by an OVS QoS.
+`--qos plain` is the baseline FIFO, `--qos priority` adds queue 1 (game) and 2 (background),
+`--controller remote` waits for a Ryu controller on 127.0.0.1:6653.
+
+## SDN controllers (Ryu, Python 3.9 environment in ~/ryu-env)
+    # terminal 1: the controller
+    cd ~/CN_project/pong
+    PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/baseline_switch.py     # or sdn/qos_switch.py
+    # terminal 2: the experiment (same controller must be running)
+    sudo python3 -B topo/topology.py --smoke 15 --bg-mbps 20 --controller remote --qos plain      # baseline
+    sudo python3 -B topo/topology.py --smoke 15 --bg-mbps 20 --controller remote --qos priority   # with qos_switch.py
+
+`baseline_switch.py` is a plain L2 learning switch; `qos_switch.py` subclasses it and only adds
+"UDP port 5000 -> queue 1, everything else -> queue 2".  Do not run `sudo mn -c` while Ryu is
+running: it kills ryu-manager.
+
 ## Layout
     game/config.py    constants shared with Mininet + Ryu (UDP port 5000, tick rate, ...)
     game/protocol.py  wire format
@@ -31,3 +54,8 @@ for testing loss handling without Mininet.
     game/client.py    UDP client (human or bot)
     game/bot.py       computer player
     game/tui.py       curses UI + keyboard input
+    game/signals.py   SIGTERM == Ctrl-C so experiment scripts can stop processes cleanly
+    sdn/baseline_switch.py  baseline controller (learning switch)
+    sdn/qos_switch.py       priority controller (game -> queue 1)
+    topo/topology.py  Mininet network, bottleneck QoS, smoke test, demo mode
+    analysis/metrics.py  latency / jitter / loss from the CSV logs

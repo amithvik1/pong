@@ -16,6 +16,10 @@ JOIN_TIMEOUT = 0.5        # seconds to wait for JOIN_ACK per attempt
 PLAYER_TIMEOUT = 3.0      # server drops a player silent for this long
 PING_INTERVAL = 1.0       # client PING period (RTT samples)
 
+# --- SDN queues (OVS QoS queue ids on the bottleneck ports) -------------------
+QUEUE_GAME = 1            # high priority: the game's UDP port
+QUEUE_BG = 2              # everything else
+
 # --- game ------------------------------------------------------------------
 # The arena is the unit square [0, 1] x [0, 1].
 LIVES = 3

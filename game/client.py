@@ -25,6 +25,7 @@ from typing import Callable, Optional
 from . import config as C
 from . import protocol as P
 from .seq import NEW, SeqTracker
+from .signals import exit_on_signals
 
 log = logging.getLogger("client")
 InputFn = Callable[[Optional[P.Snapshot], int], int]
@@ -231,6 +232,7 @@ def main(argv=None) -> int:
     ap.add_argument("--log", help="CSV of every broadcast received (for latency/jitter/loss analysis)")
     ap.add_argument("--sticky", action="store_true",
                     help="keys set a direction that persists until you press space or the opposite key")
+    ap.add_argument("--ascii", action="store_true", help="plain ASCII graphics (for terminals without Unicode)")
     ap.add_argument("--seed", type=int, help="bot random seed")
     ap.add_argument("--drop", type=float, default=float(os.environ.get("GAME_DROP_PROB", "0")),
                     help="testing aid: drop this fraction of received packets (or env GAME_DROP_PROB)")
@@ -239,6 +241,7 @@ def main(argv=None) -> int:
     if args.headless and not args.bot:
         ap.error("--headless needs --bot (a human cannot play without the UI)")
 
+    exit_on_signals()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s", datefmt="%H:%M:%S",
                         stream=sys.stderr)
     human = None
@@ -265,7 +268,7 @@ def main(argv=None) -> int:
                 time.sleep(0.2)
         else:
             from .tui import run
-            run(client, human, args.duration)
+            run(client, human, args.duration, ascii_mode=True if args.ascii else None)
     except KeyboardInterrupt:
         pass
     finally:
