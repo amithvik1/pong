@@ -1,0 +1,8 @@
+# Core (all platforms)
+matplotlib>=3.7.0
+
+# VM only (Ubuntu with Mininet)
+ryu>=4.34
+eventlet>=0.33.0
+mininet>=2.3.0b4
+networkx>=3.0
