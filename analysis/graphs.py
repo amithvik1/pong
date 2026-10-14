@@ -242,7 +242,7 @@ def plot_delay_vs_players(data, out_path):
 def main(argv=None) -> int:
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("aggregate", default="results/aggregate.csv")
+    ap.add_argument("aggregate", nargs="?", default="results/aggregate.csv")
     ap.add_argument("--out-dir", default="results/graphs")
     args = ap.parse_args(argv)
 

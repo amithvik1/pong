@@ -123,7 +123,7 @@ def generate_markdown(aggregate_rows: List[dict], md_path: str, summary_path: st
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("summary", default="results/summary.csv")
+    ap.add_argument("summary", nargs="?", default="results/summary.csv")
     ap.add_argument("--out", default="results/aggregate.csv")
     ap.add_argument("--md", default="results/analysis.md")
     args = ap.parse_args(argv)
