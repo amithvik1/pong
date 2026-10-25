@@ -9,8 +9,7 @@
 
 ## 0. How to read this document
 
-This is the "what is this project and why does it exist" document. It is written for a student who
-built the project with AI assistance and therefore does not yet have the mental model.
+This is the "what is this project and why does it exist" document.
 
 Every claim in this file is backed by an actual file in the repository. Where a claim is an
 *inference* rather than a directly-observed fact, it is labelled **[INFERENCE]**. Where something
