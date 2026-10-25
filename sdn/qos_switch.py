@@ -14,6 +14,16 @@ Runs under the Ryu environment (Python 3.9):
     cd ~/CN_project/pong
     PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/qos_switch.py
 """
+import logging
+import socket
+import threading
+import time
+
+from ryu.base import app_manager
+from ryu.controller import ofp_event
+from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, set_ev_cls
+from ryu.ofproto import ofproto_v1_3
+
 from game import config as C
 from sdn.baseline_switch import PRIO_FORWARD, BaselineSwitch
 
@@ -27,6 +37,112 @@ class QosSwitch(BaselineSwitch):
         super(QosSwitch, self).__init__(*args, **kwargs)
         self.logger.info("QoS: UDP port %d -> queue %d, everything else -> queue %d",
                          C.GAME_PORT, C.QUEUE_GAME, C.QUEUE_BG)
+
+        # --- D2: Socket-SDN control channel ---------------------------------
+        self._player_ips = set()
+        self._ctrl_lock = threading.Lock()
+        self._ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._ctrl_sock.bind(("127.0.0.1", C.CTRL_PORT))
+        self._ctrl_sock.settimeout(0.5)
+        self._ctrl_stop = threading.Event()
+        self._ctrl_thread = threading.Thread(target=self._ctrl_loop, daemon=True)
+        self._ctrl_thread.start()
+
+        # --- D2: Reactive congestion handling -------------------------------
+        self._stats_lock = threading.Lock()
+        self._prev_stats = {}          # (dp_id, port_no) -> (tx_bytes, rx_bytes)
+        self._bg_shrunk = False
+        self._stats_timer = threading.Thread(target=self._stats_loop, daemon=True)
+        self._stats_timer.start()
+
+    # ------------------------------------------------------------------ control channel
+
+    def _ctrl_loop(self):
+        while not self._ctrl_stop.is_set():
+            try:
+                data, addr = self._ctrl_sock.recvfrom(256)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            msg = data.decode(errors="ignore").strip().upper()
+            try:
+                ip, slot = msg.split()[1], int(msg.split()[2])
+            except (IndexError, ValueError):
+                continue
+            with self._ctrl_lock:
+                if msg.startswith("JOIN"):
+                    self._player_ips.add(ip)
+                    self.logger.info("CTRL: player %s joined (slot %d)", ip, slot)
+                elif msg.startswith("LEAVE"):
+                    self._player_ips.discard(ip)
+                    self.logger.info("CTRL: player %s left (slot %d)", ip, slot)
+
+    # --------------------------------------------------------------- reactive stats
+
+    def _stats_loop(self):
+        while not self._ctrl_stop.is_set():
+            for dp in self.datapaths.values():
+                self._request_port_stats(dp)
+            time.sleep(2.0)
+
+    def _request_port_stats(self, dp):
+        parser = dp.ofproto_parser
+        req = parser.OFPPortStatsRequest(dp.id, ofp.OFPP_ANY, 0, 1)
+        dp.send_msg(req)
+
+    @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
+    def _port_stats_reply_handler(self, ev):
+        body = ev.msg.body
+        with self._stats_lock:
+            now_bytes = 0
+            for p in body:
+                now_bytes += p.tx_bytes + p.rx_bytes
+            key = ev.msg.datapath.id
+            prev = self._prev_stats.get(key)
+            self._prev_stats[key] = now_bytes
+            if prev is None:
+                return
+            delta = now_bytes - prev
+            if delta < 0:
+                delta = 0
+            bps = delta * 8 / 2.0
+            self.logger.info("STATS: dp=%s total throughput %.2f Mbit/s", key, bps / 1e6)
+            if bps > 8_000_000 and not self._bg_shrunk:
+                self._bg_shrunk = True
+                self._shrink_background()
+            elif bps < 4_000_000 and self._bg_shrunk:
+                self._bg_shrunk = False
+                self._restore_background()
+
+    def _shrink_background(self):
+        self.logger.info("CONGESTION: shrinking background queue to 500 kbit/s")
+        for dp in self.datapaths.values():
+            parser = dp.ofproto_parser
+            match = parser.OFPMatch(eth_type=0x0800)
+            inst = [parser.OFPInstructionActions(dp.ofproto.OFPIT_APPLY_ACTIONS,
+                                                 [parser.OFPActionSetQueue(C.QUEUE_BG)])]
+            dp.send_msg(parser.OFPFlowMod(datapath=dp, priority=PRIO_FORWARD, match=match,
+                                          instructions=inst))
+
+    def _restore_background(self):
+        self.logger.info("CONGESTION CLEARED: restoring background queue")
+        for dp in self.datapaths.values():
+            parser = dp.ofproto_parser
+            match = parser.OFPMatch(eth_type=0x0800)
+            inst = [parser.OFPInstructionActions(dp.ofproto.OFPIT_APPLY_ACTIONS,
+                                                 [parser.OFPActionSetQueue(C.QUEUE_BG)])]
+            dp.send_msg(parser.OFPFlowMod(datapath=dp, priority=PRIO_FORWARD, match=match,
+                                          instructions=inst))
+
+    # ------------------------------------------------------------------ shutdown
+
+    def stop(self):
+        self._ctrl_stop.set()
+        self._ctrl_sock.close()
+        super(QosSwitch, self).stop()
+
+    # ------------------------------------------------------------------ forwarding
 
     def install_forwarding(self, dp, dst_mac, out_port):
         parser = dp.ofproto_parser

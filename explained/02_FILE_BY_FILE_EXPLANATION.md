@@ -693,7 +693,7 @@ def _handle(self, hdr, payload, addr, t_recv):
             self.players[addr] = player
             self.state.set_active(slot, True)
             log.info("player %d %s", slot, reason)
-            self.on_join(player)          # <-- D2 STUB (see below)
+            self.on_join(player)          # <-- Notifies controller on UDP 5001
         self._send(addr, P.encode(P.JOIN_ACK, 0, player.slot))   # idempotent
 
     elif hdr.msg_type == P.STATE_UPDATE and player:

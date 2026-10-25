@@ -7,6 +7,7 @@ imports and of syntax newer than Python 3.9 (the Ryu environment is 3.9).
 
 # --- network ---------------------------------------------------------------
 GAME_PORT = 5000          # the UDP port the SDN controller matches on
+CTRL_PORT = 5001          # the UDP port for server-controller communication
 TICK_HZ = 30              # server simulation/broadcast rate AND client update rate
 MAX_PLAYERS = 4
 NO_PLAYER = 0xFF          # player_id in a JOIN_ACK that means "server full"

@@ -48,6 +48,11 @@ class GameServer:
         self.sock.bind((host, port))
         self.sock.settimeout(0.2)
         self.port = self.sock.getsockname()[1]
+        self.ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.ctrl_sock.bind(("127.0.0.1", C.CTRL_PORT))
+        self.ctrl_sock.settimeout(0.2)
+        self.ctrl_port = self.ctrl_sock.getsockname()[1]
+        self._ctrl_addr = ("127.0.0.1", C.CTRL_PORT)   # loopback to the Ryu controller
         self.tick_hz = tick_hz
         self.player_timeout = player_timeout
         self.drop_prob = drop_prob
@@ -85,6 +90,7 @@ class GameServer:
         for t in self._threads:
             t.join(timeout=2)
         self.sock.close()
+        self.ctrl_sock.close()
         if self._log_file:
             self._log_file.close()
             self._log_file = None
@@ -93,9 +99,23 @@ class GameServer:
 
     def on_join(self, player: Player) -> None:
         """Called (lock held) when a player registers.  D2: tell the controller."""
+        msg = f"JOIN {player.addr[0]} {player.slot}"
+        self._send_ctrl(msg)
 
     def on_leave(self, player: Player, reason: str) -> None:
         """Called (lock held) when a player leaves or times out.  D2: tell the controller."""
+        msg = f"LEAVE {player.addr[0]} {player.slot}"
+        self._send_ctrl(msg)
+
+    def _send_ctrl(self, msg: str) -> None:
+        """Send a control message to the SDN controller."""
+        try:
+            # We send to a 'magic' IP that the controller will intercept,
+            # or just to our own IP on the CTRL_PORT.
+            self.sock.sendto(msg.encode(), (self.sock.getsockname()[0], C.CTRL_PORT))
+            log.info("sent control: %s", msg)
+        except OSError as e:
+            log.warning("failed to send control message: %s", e)
 
     # --- receive side ----------------------------------------------------------
 

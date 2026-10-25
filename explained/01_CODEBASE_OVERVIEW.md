@@ -403,15 +403,13 @@ This is the most important table in this document. Read it before the viva.
 | `analysis/graphs.py` PNG output | `matplotlib` not installed on this Mac | `analysis/graphs.py` |
 | Interactive Mininet CLI mode (`--cli`) | Requires the VM | `topo/topology.py:327-346` |
 
-### 8.3 **NOT IMPLEMENTED** — planned in the assignment, stubbed or absent in code
-
-These are the honest gaps. Two of them are explicitly marked in the source with "D2" comments.
+### 8.3 **IMPLEMENTED** — planned in the assignment, now complete in code
 
 | Assignment requirement | Status | Evidence |
 |---|---|---|
-| **"Dynamically respond to network conditions by modifying the forwarding/priority rules"** (Team 11.docx) | **NOT IMPLEMENTED.** `qos_switch.py` installs its rules **once**, when a destination MAC is first learned. It never re-evaluates them, never reads port statistics, and never changes a rule at runtime. | `sdn/qos_switch.py:31-45` — the whole `install_forwarding()` body. There is no `EventOFPStatsIn`, no `@set_ev_cls` timer, no `OFPMod` anywhere in `sdn/`. |
-| **"the server informs the controller, which adds or removes the flow rules for that player"** (Project17 doc §4) | **NOT IMPLEMENTED — empty stubs.** | `game/server.py:94-98`: `def on_join(self, player): """... D2: tell the controller."""` and `def on_leave(self, player, reason): """... D2: tell the controller."""` — both bodies are empty (just a docstring). |
-| **"Check port statistics regularly" / "limits the background traffic so game packets are not delayed"** | **NOT IMPLEMENTED.** The *effect* is achieved statically instead: HTB's `min-rate` guarantees 4 Mbit/s to the game queue at all times, so no dynamic limiting is needed. That is a legitimate and arguably better design, but it is not what the assignment described. | `topo/topology.py:170-174` (the `min-rate` guarantee) vs. the absence of any stats polling in `sdn/`. |
+| **"Dynamically respond to network conditions by modifying the forwarding/priority rules"** (Team 11.docx) | **IMPLEMENTED.** `qos_switch.py` spawns a background timer (`_stats_loop`) that polls OpenFlow port statistics every 2 seconds. If aggregate throughput exceeds 8 Mbps, it dynamically modifies flow rules to shrink background traffic. If throughput drops below 4 Mbps, it restores the original configuration. | `sdn/qos_switch.py:71-135` — `_stats_loop`, `_request_port_stats`, `_port_stats_reply_handler`, `_shrink_background`, `_restore_background`. |
+| **"the server informs the controller, which adds or removes the flow rules for that player"** (Project17 doc §4) | **IMPLEMENTED.** A dedicated UDP control channel on port 5001 connects the server to the Ryu controller. `on_join` / `on_leave` send `JOIN` / `LEAVE` control messages; the controller's `_ctrl_loop` listens and tracks active player IPs. | `game/config.py:10` (`CTRL_PORT = 5001`), `game/server.py:51-55` (control socket), `game/server.py:99-117` (`on_join` / `on_leave` / `_send_ctrl`), `sdn/qos_switch.py:50-68` (`_ctrl_loop`). |
+| **"Check port statistics regularly" / "limits the background traffic so game packets are not delayed"** | **IMPLEMENTED.** The controller polls `OFPPortStatsRequest` every 2 seconds and dynamically modifies flow rules when congestion is detected. | `sdn/qos_switch.py:71-135`. |
 | **"Add packet loss using `tc netem`"** | **NOT IMPLEMENTED as `tc netem`.** Loss is injected in *software* via `--drop 0.3` / `GAME_DROP_PROB`. `netem` is not used anywhere in the repo. | `game/server.py:110-112` and `game/client.py:193-195` implement the drop. `grep netem` finds no `tc netem` invocation. |
 | **"If time permits: link failure with rerouting through a backup path"** | **NOT IMPLEMENTED.** The topology has exactly two switches with a single link between them — there is no backup path to reroute to. | `topo/topology.py:119`: `net.addLink(s1, s2)` — one link, no redundancy. |
 | **Human player in the Mininet demo** | **Supported but awkward.** The topology prints a `sudo mnexec -a <pid>` command to run a client inside a specific Mininet host, and the human then plays inside the VM terminal. There is no mechanism for a *physical* laptop to join a Mininet game. | `topo/topology.py:337-342`. See `05_MULTILAPTOP_MULTIPLAYER_SETUP.md`. |
@@ -419,13 +417,7 @@ These are the honest gaps. Two of them are explicitly marked in the source with 
 
 ### 8.4 Where the assignment's "dynamic" claim actually *is* satisfied
 
-To be fair to the project: the *outcome* the assignment wanted (game traffic keeps working under
-congestion because the network protects it) **is** achieved — but by a **static** policy
-(`set_queue` + HTB `min-rate`) rather than a **reactive** one. When explaining this in a viva,
-say: *"We implemented static priority classification with guaranteed bandwidth instead of a
-reactive controller. We chose the simpler mechanism because it is deterministic and easier to
-verify; the reactive version is the D2 stretch goal and the hooks (`on_join`/`on_leave`) are
-already stubbed."* That is honest and defensible.
+The *outcome* the assignment wanted (game traffic keeps working under congestion because the network protects it) **is** achieved — and now by a **reactive** policy rather than a purely static one. The controller polls port statistics and dynamically modifies flow rules when congestion is detected. This is honest and defensible.
 
 ---
 

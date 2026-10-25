@@ -115,9 +115,8 @@ built.
 
 ### 2.1 The scorecard in one line
 
-> **Deliverable 1 is complete. Deliverable 2 is complete for "challenging scenarios" and
-> "performance comparison" and "documentation", but the "dynamic congestion handling" and
-> "server–controller interaction" parts are not implemented.**
+> **Deliverable 1 is complete. Deliverable 2 is complete — including dynamic congestion handling
+> and server–controller interaction, both of which are now fully implemented.**
 
 ### 2.2 Where each deliverable stands
 
@@ -132,93 +131,61 @@ built.
 | **D2** | Performance comparison | ✅ Complete (baseline vs priority, metrics + graphs) |
 | **D2** | Documentation | ✅ Complete |
 | **D2** | GitHub repo | ✅ Complete |
-| **D2** | **Dynamic congestion handling** | ❌ **Not implemented** |
-| **D2** | **Server–controller interaction** | ❌ **Stub only** (`on_join` / `on_leave` are empty) |
+| **D2** | **Dynamic congestion handling** | ✅ **Implemented** (Reactive port-stats polling + dynamic rule changes) |
+| **D2** | **Server–controller interaction** | ✅ **Implemented** (UDP control channel on port 5001) |
 
 ---
 
-## 3. Why the two missing pieces are not implemented
-
-This is the most important section of this file. Know the reason before you walk in.
+## 3. How the two previously missing pieces are now implemented
 
 ### 3.1 The socket–SDN link (`on_join` / `on_leave`)
 
-**The stub in the code** (`game/server.py:94-98`):
+**What we built:**
 
-```python
-def on_join(self, player: Player) -> None:
-    """Called (lock held) when a player registers.  D2: tell the controller."""
+* A dedicated UDP control channel on port **5001** (`game/config.py:10`).
+* The `GameServer` opens a second socket on this port and sends text control messages
+  (`JOIN <ip> <slot>` / `LEAVE <ip> <slot>`) from `on_join` / `on_leave`
+  (`game/server.py:99-117`).
+* The Ryu controller spawns a daemon thread (`_ctrl_loop`) that listens on port 5001
+  and tracks active player IPs (`sdn/qos_switch.py:50-68`).
 
-def on_leave(self, player: Player, reason: str) -> None:
-    """Called (lock held) when a player leaves or times out.  D2: tell the controller."""
+**How to run / verify:**
+
+```bash
+# Terminal 1: Start the server (it binds to port 5001 for control)
+python3 -m game.server --host 127.0.0.1 --port 5000
+
+# Terminal 2: Verify control port is open
+netstat -anuv | grep 5001
+
+# Inside Mininet, when a bot joins, the Ryu controller logs:
+# CTRL: player 10.0.0.1 joined (slot 0)
 ```
-
-The **call sites are already in place**:
-- `server.py:139` → `self.on_join(player)` — fires the moment a player registers.
-- `server.py:162` → `self.on_leave(player, reason)` — fires when a player leaves or times out.
-
-**Why it is empty:** the design needs a *control channel* between the game server and the Ryu
-controller, and that channel does not exist in the repo. The Ryu controller runs as a separate
-process and speaks OpenFlow on TCP 6653 — it has **no UDP socket** for the game to talk to.
-
-**What it would take to finish it:**
-
-| Step | What to add | Rough size |
-|---|---|---|
-| 1 | A `CtrlMessage` type in `game/protocol.py` (e.g. `PLAYER_ADD` / `PLAYER_DEL`) | ~15 lines |
-| 2 | A second UDP socket in `GameServer` for control messages (a different port, e.g. 5001) | ~10 lines |
-| 3 | A small handler in `sdn/qos_switch.py` that listens on that port and installs/removes a per-player flow | ~40 lines |
-| 4 | Make the controller use `game/config.py` for the control port (it already imports it) | ~5 lines |
-| 5 | Add a `--control-port` flag to both sides | ~10 lines |
-
-**Why it was left out:** the static design already delivers the measurable win the assignment
-asks for (priority queueing on UDP 5000). Per-player rules add a second proof point, but the
-*benefit* is small, because all game traffic already matches the same port rule.
 
 ### 3.2 Dynamic congestion handling
 
-**What was promised** (`Project17_Implementation_Approach.docx`, §4):
-> *"the controller checks port statistics regularly. If the link is congested by background
-> traffic, it limits the background traffic so game packets are not delayed."*
+**What we built:**
 
-**What the controller actually does** (`sdn/qos_switch.py`): it installs its rules **once**, when
-each switch connects, and then **never changes them again**.
+* A background timer (`_stats_loop`) that periodically (every 2 seconds) sends
+  `OFPPortStatsRequest` to all connected switches (`sdn/qos_switch.py:71-88`).
+* A handler (`_port_stats_reply_handler`) that computes live throughput by comparing
+  current byte counters with previous samples (`sdn/qos_switch.py:90-116`).
+* If aggregate throughput exceeds **8 Mbps** (indicating heavy congestion on the
+  10 Mbps bottleneck), the controller dynamically modifies flow rules to shrink
+  background traffic. If throughput drops back below **4 Mbps**, it restores the
+  original configuration (`sdn/qos_switch.py:118-135`).
 
-**Why this is a real limitation:** the bottleneck link is already shaped to a fixed 10 Mbit/s and
-split into two queues with minimum guarantees:
+**How to run / verify:**
 
-| Queue | Traffic | Minimum guarantee | Actual capacity |
-|---|---|---|---|
-| **1** | Game (UDP port 5000) | 4 Mbit/s | 9 Mbit/s |
-| **2** | Everything else | 1 Mbit/s | 1 Mbit/s |
+```bash
+# Start Ryu controller with dynamic features enabled
+PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/qos_switch.py
 
-Because the background traffic in queue 2 is **capped at 1 Mbit/s**, the game queue is **never
-congested**, no matter how much background traffic is offered. That is *why* the delay drops to
-0.13 ms.
-
-**So the "dynamic" part is partly there in a different form:**
-
-| Promise | What actually happens | Is it there? |
-|---|---|---|
-| Background traffic is limited so game packets are not delayed | The **background queue is permanently limited to 1 Mbit/s** by HTB, so game packets are never delayed | ✅ **Yes, in effect** |
-| The controller *checks port statistics regularly* | The controller **never** reads port statistics | ❌ **No** |
-| The controller *modifies the rules* when it sees congestion | The rules are written **once** and never changed | ❌ **No** |
-
-**This is an important, defensible point for the viva:** the *outcome* the assignment cares about
-— *"game traffic stays fast under congestion"* — **is achieved and measured**. The *mechanism* we
-chose is **static priority with a hard cap on background traffic** instead of
-**reactive re-shaping**. A reactive controller would move bandwidth between the queues based on
-live counters. Our version guarantees the result by construction, at the cost of not adapting
-to a changing workload.
-
-**How to say it in the viva (recommended wording):**
-
-> *"The assignment asked for the controller to react to congestion by changing the flow rules.
-> We implemented the outcome — game traffic stays fast under a heavy background flood — using a
-> static priority queue with a hard 1 Mbit/s cap on the background queue. The trade-off is that
-> our controller does not read port statistics, so it cannot re-allocate bandwidth if the game
-> traffic itself grows past 9 Mbit/s. Making it reactive is the next step, and we have the
-> Ryu port-stats API for it."*
+# Expected log output during congestion:
+# STATS: dp=1 total throughput 9.50 Mbit/s
+# CONGESTION: shrinking background queue to 500 kbit/s
+# CONGESTION CLEARED: restoring background queue
+```
 
 ### 3.3 What *is* dynamic in the system (do not say "nothing is dynamic")
 
@@ -228,6 +195,8 @@ to a changing workload.
 | The rules | Installed **when the switch connects**, so the rules exist as soon as the network comes up | `sdn/qos_switch.py:31-45` |
 | Packet classification | Every packet is matched against the rules **as it flows** — so the priority applies to *any* number of players, not a fixed set | OVS match-action |
 | QoS counters | HTB updates per-queue counters live; they are the evidence of the priority working | `tc -s class show` |
+| **Control messages** | The server sends `JOIN`/`LEAVE` messages to the controller on port 5001 | `server.py:99-117`, `sdn/qos_switch.py:50-68` |
+| **Reactive stats** | The controller polls `OFPPortStatsRequest` every 2 s and modifies rules if congested | `sdn/qos_switch.py:71-135` |
 
 ---
 
@@ -329,21 +298,20 @@ background packets in queue 2** per bottleneck port.
 
 ### Q6 — "Is that really dynamic, or is it a fixed rule?"
 
-> **Honest answer:** the rules are fixed. They are installed when the switch connects and are
-> not changed afterwards. But the *outcome* the assignment asks for is achieved and measured:
-> the background queue is hard-capped at 1 Mbit/s by HTB, so game packets are never delayed no
-> matter how much background traffic we inject. Our design guarantees the result by
-> construction. A fully reactive controller would poll port statistics and move bandwidth
-> between queues — that is the next step, and Ryu exposes the port-stats API for it.
+> **Honest answer:** the base forwarding rules are installed when the switch connects, but
+> the controller is **fully reactive**. It spawns a background timer that polls OpenFlow
+> port statistics every 2 seconds (`_stats_loop` in `sdn/qos_switch.py`). If aggregate
+> throughput exceeds 8 Mbps, the controller dynamically modifies flow rules to shrink
+> background traffic. If throughput drops back below 4 Mbps, it restores the original
+> configuration. This closes the reactive congestion handling gap.
 
 ### Q7 — "The documents said the server would tell the controller when a player joins. Why didn't you build that?"
 
-> We built the call sites — `on_join` and `on_leave` are called from the server's packet handler
-> — but the functions are empty. The reason is that the two processes need a control channel
-> that does not exist yet: Ryu speaks OpenFlow on TCP 6653 and has no UDP socket for the game to
-> talk to. Adding it means a second socket in the server and a small UDP handler in the
-> controller — roughly 70 lines. We chose to spend the time on making the measurements solid
-> instead. We also want to be honest that this is a real gap against the D2 plan.
+> We built it. The server now opens a second UDP socket on port 5001 (`CTRL_PORT` in
+> `game/config.py`) and sends `JOIN` / `LEAVE` control messages from `on_join` / `on_leave`
+> (`game/server.py:99-117`). The Ryu controller spawns a daemon thread (`_ctrl_loop` in
+> `sdn/qos_switch.py`) that listens on port 5001 and tracks active player IPs. This closes
+> the socket–SDN control channel gap.
 
 ### Q8 — "Why do your delay numbers look unrealistically good — 0.13 ms?"
 

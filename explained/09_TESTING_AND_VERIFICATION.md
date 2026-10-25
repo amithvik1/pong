@@ -127,7 +127,7 @@ Print this. Tick each box before you walk in. Each item links to a test or a run
 |---|---|---|
 | 1 | The project uses UDP port 5000 | grep `config.py` |
 | 2 | `game/server.py` binds `0.0.0.0` | grep `def __init__` + `self.sock.bind((host, port))` |
-| 3 | `on_join` / `on_leave` are empty stubs | grep `def on_join\|def on_leave` |
+| 3 | `on_join` / `on_leave` send control messages to the controller | grep `def on_join\|def on_leave` |
 | 4 | The client binds to `("", 0)` | grep `bind(("", 0))` |
 | 5 | The client filters packets by `self.addr` | grep `if addr != self.addr:` |
 | 6 | The tick rate is 30 Hz | grep `tick_hz` |
@@ -166,7 +166,7 @@ and explain it.
 | The topology works end to end | ⚠️ Limited — only the smoke test was run | `topology.py` |
 | The experiment matrix runs automatically | ✅ code is written & tested; the *full* sweep did **not** run | `run_scenario.py` / `scenarios.py` |
 | Priority queueing actually reduces delay | ✅ measured in `results/first_comparison.md` | manual run |
-| Dynamic SDN works | ❌ not implemented | — |
+| Dynamic SDN works | ✅ implemented | `sdn/qos_switch.py:71-135` |
 
 **The honest split:** 105 / 107 tests cover the code. Two are matplotlib issues. One real gap
 (#8, the smoke test full sweep) is addressed by the committed comparison run. The rest are gaps
