@@ -134,7 +134,7 @@ Correct Mininet topology; functional SDN controller; appropriate flow rules; pro
   * Two Open vSwitch (OVS) instances: `s1` (Client side) and `s2` (Server side).
   * Hosts connected to `s1`: `h1`, `h2`, `h3`, `h4` (Pong players) and `hb1` (bulk traffic generator).
   * Hosts connected to `s2`: `hs` (Game server) and `hb2` (bulk traffic sink).
-  * Bottleneck Link: The link between `s1` (`s1-eth5`) and `s2` (`s2-eth5`) is constrained to **10 Mbps** using Linux `tc` Hierarchical Token Bucket (HTB).
+  * Bottleneck Link: The link between `s1` (`s1-eth6`) and `s2` (`s2-eth3`) is constrained to **10 Mbps** using Linux `tc` Hierarchical Token Bucket (HTB).
   * HTB Queuing Setup (`topo/topology.py:configure_queues()`):
     * `Queue 1` (High-Priority Game): Min guaranteed 4 Mbps, ceil 9 Mbps.
     * `Queue 2` (Default / Bulk Traffic): Min guaranteed 1 Mbps, ceil 1 Mbps (strict rate limiting).
@@ -166,7 +166,7 @@ sudo python3 -B topo/topology.py --cli --controller ryu
 mininet> sh ovs-ofctl -O OpenFlow13 dump-flows s1
 
 # Verify HTB Queues and Packet Counts:
-mininet> sh tc -s class show dev s1-eth5
+mininet> sh tc -s class show dev s1-eth6
 ```
 
 ---
@@ -408,7 +408,7 @@ The following features were outlined in the original design specifications or pr
 * **Output / Code Evidence of Gap:**
   ```text
   topo/topology.py defines only a linear path:
-  s1-eth5 <---> s2-eth5
+  s1-eth6 <---> s2-eth3
   No alternate links or loop topologies are present.
   ```
 

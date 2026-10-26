@@ -24,7 +24,7 @@
 **On the Mac:**
 
 ```bash
-cd /Users/apple/Desktop/gold/code_files/side_projects/CN_project/pong
+cd /Users/apple/Desktop/gold/code_files/side_projects/pes_projects/CN_project/pong
 python3 -m pip install "matplotlib>=3.7.0"      # only needed for the graphs
 ```
 
@@ -42,7 +42,7 @@ python3 -m venv ~/ryu-env
 **Copy the code into the VM** and check these four things inside it:
 
 ```bash
-cd ~/CN_project/pong
+cd ~/pes_projects/CN_project/pong
 lsmod | grep openvswitch          # must print something
 ~/ryu-env/bin/ryu-manager --version
 command -v mn && command -v iperf3
@@ -79,7 +79,7 @@ command -v mn && command -v iperf3
 
 ```bash
 # Terminal A (Mac) — project root
-cd /Users/apple/Desktop/gold/code_files/side_projects/CN_project/pong
+cd /Users/apple/Desktop/gold/code_files/side_projects/pes_projects/CN_project/pong
 python3 -m game.server
 ```
 
@@ -146,7 +146,7 @@ connect one laptop by cable. (Details in file 05 §5.4.)
 ### 3.1 Start the controller — Terminal A (VM)
 
 ```bash
-cd ~/CN_project/pong
+cd ~/pes_projects/CN_project/pong
 PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/qos_switch.py
 ```
 
@@ -163,7 +163,7 @@ That line comes only after you start the topology.
 ### 3.2 Start the network — Terminal B (VM)
 
 ```bash
-cd ~/CN_project/pong
+cd ~/pes_projects/CN_project/pong
 sudo python3 -B topo/topology.py --smoke 15 --bg-mbps 20 --controller remote --qos priority
 ```
 
@@ -207,8 +207,8 @@ server.csv [P4 up]         451    0.00    73.239   109.219   115.347     23.643 
 
 Per-queue counters on the bottleneck ports (OVS linux-htb classes):
   port     class                     packets       bytes     dropped
-  s1-eth5  queue 1 (game)               1870      97240          0
-  s1-eth5  queue 2 (other)             15000     7800000          0
+  s1-eth6  queue 1 (game)               1870      97240          0
+  s1-eth6  queue 2 (other)             15000     7800000          0
 
 RESULT: ping OK | bottleneck OK | game OK
 ```
@@ -228,13 +228,13 @@ While the topology is running, in a **third** VM terminal:
 sudo ovs-ofctl -O OpenFlow13 dump-flows s1
 
 # Per-queue counters — the proof the priority worked
-sudo tc -s class show dev s1-eth5
+sudo tc -s class show dev s1-eth6
 
 # The QoS setup on the port
 sudo ovs-vsctl show
 
 # Live game packets
-sudo tcpdump -i s1-eth5 -n 'udp port 5000' -c 20
+sudo tcpdump -i s1-eth6 -n 'udp port 5000' -c 20
 ```
 
 **What to point at:**
@@ -242,7 +242,7 @@ sudo tcpdump -i s1-eth5 -n 'udp port 5000' -c 20
 | Command | What to say |
 |---|---|
 | `dump-flows s1` | *"Two rules match UDP port 5000 and set queue 1. Everything else goes to queue 2."* |
-| `tc -s class show dev s1-eth5` | *"Game packets are in queue 1, background in queue 2. The background queue only had 1 Mbit/s to work with, so the game queue stayed empty."* |
+| `tc -s class show dev s1-eth6` | *"Game packets are in queue 1, background in queue 2. The background queue only had 1 Mbit/s to work with, so the game queue stayed empty."* |
 | `tcpdump` | *"These are the actual game packets going through the switch the controller programmed."* |
 
 ### 3.4 Run the baseline for comparison
@@ -277,7 +277,7 @@ The script prints the exact command to join as the human player:
  Game server running on hs (10.0.0.10:5000), 3 bot(s) playing on h4, h3, h2.
  To play yourself, open ANOTHER terminal tab in the VM and run:
 
-   sudo mnexec -a 12345 bash -c 'cd /root/CN_project/pong && PYTHONDONTWRITEBYTECODE=1 python3 -m game.client --server 10.0.0.10'
+   sudo mnexec -a 12345 bash -c 'cd /root/pes_projects/CN_project/pong && PYTHONDONTWRITEBYTECODE=1 python3 -m game.client --server 10.0.0.10'
 ```
 
 Copy it into a new tab and run it. Now you are inside the SDN network.
@@ -301,7 +301,7 @@ exit                             # stop the network
 
 ```bash
 # Terminal A (VM)
-cd ~/CN_project/pong
+cd ~/pes_projects/CN_project/pong
 sudo python3 -B topo/run_scenario.py --quick
 ```
 
@@ -484,7 +484,7 @@ Print this. Tick it off before you walk in.
 ### The night before
 
 - ☐ VM is set up (all four checks in §0.2 pass)
-- ☐ Code is copied into the VM at `~/CN_project/pong`
+- ☐ Code is copied into the VM at `~/pes_projects/CN_project/pong`
 - ☐ `python3 -m unittest discover -v` passes 107/107 on the Mac
 - ☐ `results/first_comparison.md` is committed
 - ☐ The graphs exist in `results/graphs/`

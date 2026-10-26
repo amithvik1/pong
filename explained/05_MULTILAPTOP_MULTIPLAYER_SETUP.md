@@ -108,7 +108,7 @@ Laptop B only needs **Python 3.9+** and the `game/` folder. It does **not** need
 
 ```bash
 # From your Mac, copy the project to Laptop B
-scp -r /Users/apple/Desktop/gold/code_files/side_projects/CN_project/pong \
+scp -r /Users/apple/Desktop/gold/code_files/side_projects/pes_projects/CN_project/pong \
       <user>@<laptop-b-ip>:~/
 ```
 
@@ -173,7 +173,7 @@ If you see `could not join: no reply from server 192.168.1.50:5000` → go to §
 
 ```bash
 # On Laptop A
-cd /Users/apple/Desktop/gold/code_files/side_projects/CN_project/pong
+cd /Users/apple/Desktop/gold/code_files/side_projects/pes_projects/CN_project/pong
 python3 -m game.server
 ```
 
@@ -428,7 +428,7 @@ checks. **(d) is not in the code today.** Say so honestly.
 
 ```
 ┌──────────────────── LAPTOP A (server) ────────────────────┐
-│ $ cd /Users/apple/Desktop/gold/code_files/side_projects/CN_project/pong
+│ $ cd /Users/apple/Desktop/gold/code_files/side_projects/pes_projects/CN_project/pong
 │ $ ipconfig getifaddr en0                    # → 192.168.1.50
 │ $ python3 -m game.server
 │   server: listening on UDP 5000

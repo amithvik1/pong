@@ -35,7 +35,7 @@ sink) on s2; s1<->s2 is the 10 Mbit/s bottleneck, shaped in both directions by a
 
 ## SDN controllers (Ryu, Python 3.9 environment in ~/ryu-env)
     # terminal 1: the controller
-    cd ~/CN_project/pong
+    cd ~/pes_projects/CN_project/pong
     PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/baseline_switch.py     # or sdn/qos_switch.py
     # terminal 2: the experiment (same controller must be running)
     sudo python3 -B topo/topology.py --smoke 15 --bg-mbps 20 --controller remote --qos plain      # baseline

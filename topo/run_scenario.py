@@ -144,8 +144,12 @@ def compute_aggregate_metrics(client_entries: List[dict], server_entries: List[d
 
 def _find_ryu_manager() -> str:
     env_path = os.environ.get("RYU_MANAGER", "")
+    sudo_user = os.environ.get("SUDO_USER", "")
+    sudo_ryu = os.path.expanduser(f"~{sudo_user}/ryu-env/bin/ryu-manager") if sudo_user else ""
     for cand in (env_path,
+                 sudo_ryu,
                  os.path.expanduser("~/ryu-env/bin/ryu-manager"),
+                 "/home/amith/ryu-env/bin/ryu-manager",
                  shutil.which("ryu-manager") or ""):
         if cand and os.path.exists(cand):
             return cand
@@ -238,6 +242,8 @@ def run_single(net, procs, scenario: S.Scenario, outdir: str, warmup: float, tai
 
 def build_network(mode: str) -> tuple:
     """Build Mininet network with the correct controller for this mode."""
+    if T is not None:
+        T.cleanup_stale()
     controller = "none" if mode == "baseline" else "remote"
     net = T.build(controller=controller)
     procs = T.Procs()

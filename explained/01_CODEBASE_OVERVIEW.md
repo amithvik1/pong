@@ -3,7 +3,7 @@
 > **Project:** Team 11 — *Multiplayer Game Communication Network* (SDN Socket Programming / "Jackfruit")
 > **Team:** Amith Vikram (PES2UG25CS057), Akarsh Agrawal (PES2UG25CS043), Aditya V. Prabhu (PES2UG25CS029)
 > **Document generated:** 22 October 2026
-> **Repository root analyzed:** `/Users/apple/Desktop/gold/code_files/side_projects/CN_project/pong`
+> **Repository root analyzed:** `/Users/apple/Desktop/gold/code_files/side_projects/pes_projects/CN_project/pong`
 
 ---
 

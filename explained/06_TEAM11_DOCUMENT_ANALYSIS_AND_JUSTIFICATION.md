@@ -210,7 +210,7 @@ PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/qos_switch.py
 | 0:03–0:07 | **The game works.** Two clients + bots on one laptop. Show the paddle control and the same ball on both screens. | Mac | `python3 -m game.server` + `python3 -m game.client` |
 | 0:07–0:10 | **The protocol.** Open `game/protocol.py` and show the 6 message types, the sequence number, and the timestamp. Explain "latest state wins". | Mac | open the file |
 | 0:10–0:14 | **The network.** Show the Mininet topology diagram: 4 players + server behind `s1`, background hosts, a 10 Mbit/s bottleneck to `s2`. | VM | `sudo python3 -B topo/topology.py --cli --bots 0` |
-| 0:14–0:19 | **The SDN part.** Run the controller, start the topology, then dump the OpenFlow rules and the queue counters. | VM | `ovs-ofctl -O OpenFlow13 dump-flows s1` and `tc -s class show dev s1-eth5` |
+| 0:14–0:19 | **The SDN part.** Run the controller, start the topology, then dump the OpenFlow rules and the queue counters. | VM | `ovs-ofctl -O OpenFlow13 dump-flows s1` and `tc -s class show dev s1-eth6` |
 | 0:19–0:23 | **The numbers.** Show `results/first_comparison.md` — 73.9 ms → 0.13 ms — and one graph. | Mac | open `results/analysis.md` + `results/graphs/delay_by_bg.png` |
 | 0:23–0:25 | **Honesty + next step.** State the gap plainly, then say what you would do next. | — | — |
 

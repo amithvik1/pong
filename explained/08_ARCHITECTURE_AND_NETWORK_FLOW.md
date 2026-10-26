@@ -71,10 +71,10 @@ h1-eth0  →  s1-eth1
    │
    │   ★ SWITCH s1 LOOKS AT THE PACKET ★
    │     match udp_dst=5000  →  hit
-   │     action: set_queue:1  →  output s1-eth5
+   │     action: set_queue:1  →  output s1-eth6
    │
    ▼
-s1-eth5  →  s2-eth1        ← THE BOTTLENECK (HTB, 10 Mbit/s, 2 queues)
+s1-eth6  →  s2-eth3        ← THE BOTTLENECK (HTB, 10 Mbit/s, 2 queues)
    │                            game packets → queue 1 (4 Mbit/s min, 9 Mbit/s max)
    │                            other packets → queue 2 (1 Mbit/s min, 1 Mbit/s max)
    │                            background queue is FULL → game queue stays EMPTY
@@ -244,8 +244,8 @@ From the smoke run:
 ```
 Per-queue counters on the bottleneck ports (OVS linux-htb classes):
   port     class                     packets       bytes     dropped
-  s1-eth5  queue 1 (game)               1870      97240          0
-  s1-eth5  queue 2 (other)             15000     7800000          0
+  s1-eth6  queue 1 (game)               1870      97240          0
+  s1-eth6  queue 2 (other)             15000     7800000          0
 ```
 
 **How to read it:**
@@ -260,7 +260,7 @@ Per-queue counters on the bottleneck ports (OVS linux-htb classes):
 **Live version of this command (during a run):**
 
 ```bash
-sudo tc -s class show dev s1-eth5
+sudo tc -s class show dev s1-eth6
 ```
 
 ### 3.4 The summary CSV

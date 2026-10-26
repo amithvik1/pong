@@ -70,7 +70,7 @@ sink) on s2; s1<->s2 is the 10 Mbit/s bottleneck, shaped in both directions by a
 
 ## SDN controllers (Ryu, Python 3.9 environment in ~/ryu-env)
     # terminal 1: the controller
-    cd ~/CN_project/pong
+    cd ~/pes_projects/CN_project/pong
     PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/baseline_switch.py     # or sdn/qos_switch.py
     # terminal 2: the experiment (same controller must be running)
     sudo python3 -B topo/topology.py --smoke 15 --bg-mbps 20 --controller remote --qos plain      # baseline
@@ -1593,7 +1593,7 @@ forward identically and differ ONLY in queue selection - a fair comparison.
 
 Runs under the Ryu environment (Python 3.9): keep the syntax 3.9-compatible.
 
-    cd ~/CN_project/pong
+    cd ~/pes_projects/CN_project/pong
     PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/baseline_switch.py
 """
 from ryu.base import app_manager
@@ -1678,7 +1678,7 @@ guarantee, queue 2 the low-priority one.  Ports without those queues ignore set_
 
 Runs under the Ryu environment (Python 3.9):
 
-    cd ~/CN_project/pong
+    cd ~/pes_projects/CN_project/pong
     PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/qos_switch.py
 """
 from game import config as C

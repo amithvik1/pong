@@ -87,7 +87,7 @@ python3 -m unittest tests.test_state -v
 ### 3.1 D1.2: Socket Server & Multi-Client Gameplay
 
 #### Step 1: Start Authoritative Game Server
-Binds to `0.0.0.0:5000` (UDP game port) and initializes the dynamic control listener on `0.0.0.0:5001`.
+Binds to `0.0.0.0:5000` (UDP game port) and communicates player join/leave events to the SDN controller on port `5001`.
 ```bash
 # Terminal 1
 python3 -m game.server
@@ -136,12 +136,15 @@ PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/qos_switch.py
 ```
 *Expected log:*
 ```text
+loading app sdn/qos_switch.py
+loading app ryu.controller.ofp_handler
+instantiating app sdn/qos_switch.py of QosSwitch
 QoS: UDP port 5000 -> queue 1, everything else -> queue 2
-Control channel listening on UDP port 5001
+instantiating app ryu.controller.ofp_handler of OFPHandler
 ```
 
 #### Step 2: Run End-to-End Mininet Smoke Test with Background Congestion
-Starts network, applies Linux HTB shaping on bottleneck ports (`s1-eth5` and `s2-eth5`), launches game server + 4 clients, floods 20 Mbps bulk UDP traffic, and evaluates results.
+Starts network, applies Linux HTB shaping on bottleneck ports (`s1-eth6` and `s2-eth3`), launches game server + 4 clients, floods 20 Mbps bulk UDP traffic, and evaluates results.
 ```bash
 # Terminal 2 (Linux VM)
 sudo python3 -B topo/topology.py --smoke 15 --bg-mbps 20 --controller remote --qos priority
@@ -174,7 +177,7 @@ sudo python3 -B topo/topology.py --cli --bots 3 --controller remote --qos priori
 Mininet prints the execution target PID:
 ```bash
 # Terminal 3 (Linux VM) - Attach client directly inside player namespace (e.g. h1)
-sudo mnexec -a <PID> bash -c 'cd ~/CN_project/pong && PYTHONDONTWRITEBYTECODE=1 python3 -m game.client --server 10.0.0.10'
+sudo mnexec -a <PID> bash -c 'cd ~/pes_projects/CN_project/pong && PYTHONDONTWRITEBYTECODE=1 python3 -m game.client --server 10.0.0.10'
 ```
 
 #### Inspect Live OpenFlow Flow Rules & QoS HTB Queues
@@ -184,7 +187,7 @@ Verify that game traffic is steered to Queue 1 while background flood is throttl
 sudo ovs-ofctl -O OpenFlow13 dump-flows s1
 
 # Check queue statistics (packets, bytes, drops) on bottleneck interface
-sudo tc -s class show dev s1-eth5
+sudo tc -s class show dev s1-eth6
 ```
 
 ---
@@ -257,7 +260,7 @@ python3 -m game.client --server 192.168.1.50 --port 5000 --name Laptop2 --sticky
 | **Control Port** | `sudo lsof -nP -iUDP:5001` | Verify SDN control channel listener status |
 | **Controller Status** | `sudo ss -tlnp \| grep 6653` | Confirm Ryu OpenFlow manager is active |
 | **Flow Rules** | `sudo ovs-ofctl -O OpenFlow13 dump-flows s1` | Inspect dynamic OpenFlow table rules |
-| **HTB Queue Stats** | `sudo tc -s class show dev s1-eth5` | Display byte & packet counts per QoS queue |
-| **Packet Inspection** | `sudo tcpdump -i s1-eth5 -n 'udp port 5000' -c 20` | Capture live game packets over bottleneck link |
+| **HTB Queue Stats** | `sudo tc -s class show dev s1-eth6` | Display byte & packet counts per QoS queue |
+| **Packet Inspection** | `sudo tcpdump -i s1-eth6 -n 'udp port 5000' -c 20` | Capture live game packets over bottleneck link |
 | **Cleanup Stale State** | `sudo ovs-vsctl --if-exists del-br s1 && sudo ovs-vsctl --if-exists del-br s2` | Clean residual switches without killing controller |
 | **Kill Lingering Procs** | `pkill -f "game.server"; pkill -f "game.client"` | Terminate running game instances |

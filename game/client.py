@@ -226,6 +226,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python3 -m game.client", description="4-player pong client")
     ap.add_argument("--server", default="127.0.0.1", help="server IP or name")
     ap.add_argument("--port", type=int, default=C.GAME_PORT)
+    ap.add_argument("--name", default="", help="player name or label")
     ap.add_argument("--bot", action="store_true", help="let the computer control the paddle")
     ap.add_argument("--headless", action="store_true", help="no UI (bots only) - for experiments")
     ap.add_argument("--duration", type=float, default=0, help="leave after N seconds (0 = until you quit)")

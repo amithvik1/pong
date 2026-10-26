@@ -6,12 +6,12 @@ forward identically and differ ONLY in queue selection - a fair comparison.
 
 Runs under the Ryu environment (Python 3.9): keep the syntax 3.9-compatible.
 
-    cd ~/CN_project/pong
+    cd ~/pes_projects/CN_project/pong
     PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/baseline_switch.py
 """
 from ryu.base import app_manager
 from ryu.controller import ofp_event
-from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, set_ev_cls
+from ryu.controller.handler import CONFIG_DISPATCHER, DEAD_DISPATCHER, MAIN_DISPATCHER, set_ev_cls
 from ryu.lib.packet import ether_types, ethernet, packet
 from ryu.ofproto import ofproto_v1_3
 
@@ -25,12 +25,22 @@ class BaselineSwitch(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(BaselineSwitch, self).__init__(*args, **kwargs)
         self.mac_to_port = {}                 # dpid -> {mac: port}
+        self.datapaths = {}                   # dpid -> datapath
 
-    # --- switch connects: send unknown packets to us -----------------------------
+    # --- switch connects / disconnects ---------------------------------------------
+
+    @set_ev_cls(ofp_event.EventOFPStateChange, [MAIN_DISPATCHER, DEAD_DISPATCHER])
+    def _state_change_handler(self, ev):
+        dp = ev.datapath
+        if ev.state == MAIN_DISPATCHER:
+            self.datapaths[dp.id] = dp
+        elif ev.state == DEAD_DISPATCHER:
+            self.datapaths.pop(dp.id, None)
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def _on_features(self, ev):
         dp = ev.msg.datapath
+        self.datapaths[dp.id] = dp
         ofp, parser = dp.ofproto, dp.ofproto_parser
         actions = [parser.OFPActionOutput(ofp.OFPP_CONTROLLER, ofp.OFPCML_NO_BUFFER)]
         self.add_flow(dp, PRIO_TABLE_MISS, parser.OFPMatch(), actions)

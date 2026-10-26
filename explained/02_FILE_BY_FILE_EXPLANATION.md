@@ -4,7 +4,7 @@
 > it, and what is suspicious about it.
 >
 > **Path convention:** all paths are relative to the repository root
-> `/Users/apple/Desktop/gold/code_files/side_projects/CN_project/pong`.
+> `/Users/apple/Desktop/gold/code_files/side_projects/pes_projects/CN_project/pong`.
 
 **Legend:** `[EXEC]` = executed directly · `[IMPORT]` = imported by other code ·
 `[CONFIG]` = configuration/manifest · `[GEN]` = generated output, not source.
@@ -1656,8 +1656,8 @@ for cid, nbytes, pkts, drops in re.findall(
 ```
 Per-queue counters on the bottleneck ports (OVS linux-htb classes):
   port     class                     packets       bytes     dropped
-  s1-eth5  queue 1 (game)               1870      97240          0
-  s1-eth5  queue 2 (other)             15000     7800000          0
+  s1-eth6  queue 1 (game)               1870      97240          0
+  s1-eth6  queue 2 (other)             15000     7800000          0
 ```
 
 **This is the single most convincing piece of evidence in the project** — it shows the packets
@@ -1720,7 +1720,7 @@ join:
  Game server running on hs (10.0.0.10:5000), 3 bot(s) playing on h4, h3, h2.
  To play yourself, open ANOTHER terminal tab in the VM and run:
 
-   sudo mnexec -a 12345 bash -c 'cd /root/CN_project/pong && PYTHONDONTWRITEBYTECODE=1 python3 -m game.client --server 10.0.0.10'    # h1
+   sudo mnexec -a 12345 bash -c 'cd /root/pes_projects/CN_project/pong && PYTHONDONTWRITEBYTECODE=1 python3 -m game.client --server 10.0.0.10'    # h1
 ```
 
 `sudo mnexec -a <pid>` runs a command **inside** a running Mininet host, using that host's

@@ -48,10 +48,6 @@ class GameServer:
         self.sock.bind((host, port))
         self.sock.settimeout(0.2)
         self.port = self.sock.getsockname()[1]
-        self.ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.ctrl_sock.bind(("127.0.0.1", C.CTRL_PORT))
-        self.ctrl_sock.settimeout(0.2)
-        self.ctrl_port = self.ctrl_sock.getsockname()[1]
         self._ctrl_addr = ("127.0.0.1", C.CTRL_PORT)   # loopback to the Ryu controller
         self.tick_hz = tick_hz
         self.player_timeout = player_timeout
@@ -90,7 +86,6 @@ class GameServer:
         for t in self._threads:
             t.join(timeout=2)
         self.sock.close()
-        self.ctrl_sock.close()
         if self._log_file:
             self._log_file.close()
             self._log_file = None

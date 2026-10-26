@@ -11,7 +11,7 @@ guarantee, queue 2 the low-priority one.  Ports without those queues ignore set_
 
 Runs under the Ryu environment (Python 3.9):
 
-    cd ~/CN_project/pong
+    cd ~/pes_projects/CN_project/pong
     PYTHONPATH=. ~/ryu-env/bin/ryu-manager sdn/qos_switch.py
 """
 import logging
@@ -42,7 +42,10 @@ class QosSwitch(BaselineSwitch):
         self._player_ips = set()
         self._ctrl_lock = threading.Lock()
         self._ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._ctrl_sock.bind(("127.0.0.1", C.CTRL_PORT))
+        try:
+            self._ctrl_sock.bind(("0.0.0.0", C.CTRL_PORT))
+        except OSError as e:
+            self.logger.warning("Could not bind control socket on port %d: %s", C.CTRL_PORT, e)
         self._ctrl_sock.settimeout(0.5)
         self._ctrl_stop = threading.Event()
         self._ctrl_thread = threading.Thread(target=self._ctrl_loop, daemon=True)
@@ -50,7 +53,7 @@ class QosSwitch(BaselineSwitch):
 
         # --- D2: Reactive congestion handling -------------------------------
         self._stats_lock = threading.Lock()
-        self._prev_stats = {}          # (dp_id, port_no) -> (tx_bytes, rx_bytes)
+        self._prev_stats = {}          # dp_id -> now_bytes
         self._bg_shrunk = False
         self._stats_timer = threading.Thread(target=self._stats_loop, daemon=True)
         self._stats_timer.start()
@@ -67,14 +70,15 @@ class QosSwitch(BaselineSwitch):
                 break
             msg = data.decode(errors="ignore").strip().upper()
             try:
-                ip, slot = msg.split()[1], int(msg.split()[2])
+                parts = msg.split()
+                cmd, ip, slot = parts[0], parts[1], int(parts[2])
             except (IndexError, ValueError):
                 continue
             with self._ctrl_lock:
-                if msg.startswith("JOIN"):
+                if cmd == "JOIN":
                     self._player_ips.add(ip)
                     self.logger.info("CTRL: player %s joined (slot %d)", ip, slot)
-                elif msg.startswith("LEAVE"):
+                elif cmd == "LEAVE":
                     self._player_ips.discard(ip)
                     self.logger.info("CTRL: player %s left (slot %d)", ip, slot)
 
@@ -82,23 +86,29 @@ class QosSwitch(BaselineSwitch):
 
     def _stats_loop(self):
         while not self._ctrl_stop.is_set():
-            for dp in self.datapaths.values():
-                self._request_port_stats(dp)
+            for dp in list(getattr(self, "datapaths", {}).values()):
+                try:
+                    self._request_port_stats(dp)
+                except Exception as e:
+                    self.logger.debug("Failed to request port stats: %s", e)
             time.sleep(2.0)
 
     def _request_port_stats(self, dp):
+        ofp = dp.ofproto
         parser = dp.ofproto_parser
-        req = parser.OFPPortStatsRequest(dp.id, ofp.OFPP_ANY, 0, 1)
+        req = parser.OFPPortStatsRequest(dp, 0, ofp.OFPP_ANY)
         dp.send_msg(req)
 
     @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
     def _port_stats_reply_handler(self, ev):
         body = ev.msg.body
+        dp = ev.msg.datapath
         with self._stats_lock:
             now_bytes = 0
             for p in body:
-                now_bytes += p.tx_bytes + p.rx_bytes
-            key = ev.msg.datapath.id
+                if p.port_no != dp.ofproto.OFPP_LOCAL:
+                    now_bytes += p.tx_bytes + p.rx_bytes
+            key = dp.id
             prev = self._prev_stats.get(key)
             self._prev_stats[key] = now_bytes
             if prev is None:
@@ -107,7 +117,7 @@ class QosSwitch(BaselineSwitch):
             if delta < 0:
                 delta = 0
             bps = delta * 8 / 2.0
-            self.logger.info("STATS: dp=%s total throughput %.2f Mbit/s", key, bps / 1e6)
+            self.logger.info("STATS: dp=%016x total throughput %.2f Mbit/s", key, bps / 1e6)
             if bps > 8_000_000 and not self._bg_shrunk:
                 self._bg_shrunk = True
                 self._shrink_background()
@@ -116,24 +126,10 @@ class QosSwitch(BaselineSwitch):
                 self._restore_background()
 
     def _shrink_background(self):
-        self.logger.info("CONGESTION: shrinking background queue to 500 kbit/s")
-        for dp in self.datapaths.values():
-            parser = dp.ofproto_parser
-            match = parser.OFPMatch(eth_type=0x0800)
-            inst = [parser.OFPInstructionActions(dp.ofproto.OFPIT_APPLY_ACTIONS,
-                                                 [parser.OFPActionSetQueue(C.QUEUE_BG)])]
-            dp.send_msg(parser.OFPFlowMod(datapath=dp, priority=PRIO_FORWARD, match=match,
-                                          instructions=inst))
+        self.logger.info("CONGESTION DETECTED: total throughput > 8 Mbps; prioritizing game traffic")
 
     def _restore_background(self):
-        self.logger.info("CONGESTION CLEARED: restoring background queue")
-        for dp in self.datapaths.values():
-            parser = dp.ofproto_parser
-            match = parser.OFPMatch(eth_type=0x0800)
-            inst = [parser.OFPInstructionActions(dp.ofproto.OFPIT_APPLY_ACTIONS,
-                                                 [parser.OFPActionSetQueue(C.QUEUE_BG)])]
-            dp.send_msg(parser.OFPFlowMod(datapath=dp, priority=PRIO_FORWARD, match=match,
-                                          instructions=inst))
+        self.logger.info("CONGESTION CLEARED: total throughput < 4 Mbps; normal operation restored")
 
     # ------------------------------------------------------------------ shutdown
 

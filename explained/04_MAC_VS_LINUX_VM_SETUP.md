@@ -123,24 +123,24 @@ Mininet's hosts live in their own network namespace with fixed `10.0.0.x` addres
 ### 5.1 Two copies of the code
 
 The cleanest arrangement, and the one the repo's own README implies
-(`README.md:38` → `cd ~/CN_project/pong` inside the VM):
+(`README.md:38` → `cd ~/pes_projects/CN_project/pong` inside the VM):
 
 ```
-Mac:      /Users/apple/Desktop/gold/code_files/side_projects/CN_project/pong
-Ubuntu VM: ~/CN_project/pong          (a copy, e.g. via git clone or a synced folder)
+Mac:      /Users/apple/Desktop/gold/code_files/side_projects/pes_projects/CN_project/pong
+Ubuntu VM: ~/pes_projects/CN_project/pong          (a copy, e.g. via git clone or a synced folder)
 ```
 
 **How to get the code into the VM** (pick one):
 
 ```bash
 # Option A — git (recommended; the repo already has a remote)
-git clone <your-github-url> ~/CN_project/pong
+git clone <your-github-url> ~/pes_projects/CN_project/pong
 
 # Option B — copy over a shared folder (VirtualBox/UTM/Parallels shared folder)
 cp -r /Volumes/<shared>/pong ~/CN_project/
 
 # Option C — scp over the network
-scp -r /Users/apple/Desktop/gold/code_files/side_projects/CN_project/pong \
+scp -r /Users/apple/Desktop/gold/code_files/side_projects/pes_projects/CN_project/pong \
       amith@<vm-ip>:~/CN_project/
 ```
 
