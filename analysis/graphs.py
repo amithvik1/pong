@@ -21,7 +21,12 @@ import sys
 try:
     import matplotlib.pyplot as plt
 except ImportError as exc:
-    raise SystemExit("matplotlib required for graphs (install in VM: pip install matplotlib): %s" % exc)
+    plt = None
+
+
+def _check_matplotlib():
+    if plt is None:
+        raise SystemExit("matplotlib required for graphs (install in VM: pip install matplotlib)")
 
 
 COLORS = {"baseline": "#1f77b4", "priority": "#ff7f0e"}
@@ -240,6 +245,7 @@ def plot_delay_vs_players(data, out_path):
 
 
 def main(argv=None) -> int:
+    _check_matplotlib()
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("aggregate", nargs="?", default="results/aggregate.csv")

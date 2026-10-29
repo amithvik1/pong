@@ -15,20 +15,19 @@ class GraphTests(unittest.TestCase):
             self.skipTest("matplotlib not installed")
 
     def test_plot_functions_run_without_crash(self):
-        try:
-            import analysis.graphs as G
-            import csv, tempfile
-            d = tempfile.mkdtemp()
-            p = os.path.join(d, "agg.csv")
-            with open(p, "w", newline="") as f:
-                w = csv.writer(f)
-                w.writerow(["mode","bg_label","players","bg_mbps","metric","mean","std","n"])
-                w.writerow(["baseline","none",2,0,"delay_mean_ms",5,0.1,3])
-            G.main([p, "--out-dir", d])
-            for name in ("delay_by_bg.png", "jitter_by_bg.png", "loss_by_bg.png", "delay_vs_players.png"):
-                self.assertTrue(os.path.exists(os.path.join(d, name)), name)
-        except ImportError:
+        import analysis.graphs as G
+        if getattr(G, "plt", None) is None:
             self.skipTest("matplotlib not installed")
+        import csv, tempfile
+        d = tempfile.mkdtemp()
+        p = os.path.join(d, "agg.csv")
+        with open(p, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["mode","bg_label","players","bg_mbps","metric","mean","std","n"])
+            w.writerow(["baseline","none",2,0,"delay_mean_ms",5,0.1,3])
+        G.main([p, "--out-dir", d])
+        for name in ("delay_by_bg.png", "jitter_by_bg.png", "loss_by_bg.png", "delay_vs_players.png"):
+            self.assertTrue(os.path.exists(os.path.join(d, name)), name)
 
 if __name__ == "__main__":
     unittest.main()
