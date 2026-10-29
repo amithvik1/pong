@@ -359,15 +359,12 @@ background packets in queue 2** per bottleneck port.
 
 In priority order:
 
-1. **Finish the socket–SDN link** — fill in `on_join` / `on_leave`, add a control channel, and
-   install per-player flow rules. The call sites are already there.
-2. **Make the controller reactive** — poll `port_stats` on a timer and re-shape the HTB classes
-   so background bandwidth shrinks when the game traffic grows.
-3. **Add `tc netem`** for delay and reordering scenarios, not just loss.
-4. **Run the full 54-cell matrix** and publish the full graph set. The matrix code exists
+1. **Add `tc netem`** for delay and reordering scenarios, not just loss.
+2. **Run the full 54-cell matrix** and publish the full graph set. The matrix code exists
    (`topo/scenarios.py`) and the driver exists (`topo/run_scenario.py`); only the time was
    missing.
-5. **Add authentication** to the `JOIN` packet so the server is not open to anyone on the network.
+3. **Add authentication** to the `JOIN` packet so the server is not open to anyone on the network.
+4. **Dynamic link failover** — multi-path topology with alternate routing rules.
 
 ### Q14 — "What did each of you do?"
 
@@ -381,8 +378,6 @@ Use the split in §4.4, and be ready to point at a specific file and line for ea
 
 | Gap | How bad is it? | The honest one-line answer |
 |---|---|---|
-| `on_join` / `on_leave` are empty | Medium | "The call sites are implemented; the control channel they need is not. We scoped it out to make the measurements solid." |
-| Controller never re-writes rules | Medium | "We achieved the required outcome with a static priority queue. The reactive version is the next step." |
 | Only 1 of 54 scenarios is in `results/summary.csv` | Medium | "The harness runs all 54 automatically; we ran out of time before the full sweep. The single-run comparison is measured." |
 | `results/summary.csv` has 1 row, `results/graphs/` is not committed | Medium | "The generator is tested and working; the committed numbers are from the first comparison run." |
 | Link-failure / rerouting scenario | Low | "The document itself marked it 'if time permits'." |

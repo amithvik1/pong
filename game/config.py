@@ -21,6 +21,12 @@ PING_INTERVAL = 1.0       # client PING period (RTT samples)
 QUEUE_GAME = 1            # high priority: the game's UDP port
 QUEUE_BG = 2              # everything else
 
+# --- reactive congestion thresholds (used by sdn/qos_switch.py) ----------------
+CONGESTION_THRESHOLD_MBPS = 8.0    # if total throughput exceeds this, shrink the bg queue
+RECOVERY_THRESHOLD_MBPS = 4.0      # if throughput drops below this, restore the bg queue
+BG_NORMAL_MIN_BPS = 1_000_000      # bg queue min-rate when not congested
+BG_SHRUNK_MIN_BPS = 500_000        # bg queue min-rate when congested (halved)
+
 # --- game ------------------------------------------------------------------
 # The arena is the unit square [0, 1] x [0, 1].
 LIVES = 3

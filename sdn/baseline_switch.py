@@ -82,3 +82,10 @@ class BaselineSwitch(app_manager.RyuApp):
         inst = [parser.OFPInstructionActions(ofp.OFPIT_APPLY_ACTIONS, actions)]
         dp.send_msg(parser.OFPFlowMod(datapath=dp, priority=priority, match=match,
                                       instructions=inst, idle_timeout=idle_timeout))
+
+    def delete_flow(self, dp, priority, match):
+        """Delete all flows matching the given priority and match on this datapath."""
+        ofp, parser = dp.ofproto, dp.ofproto_parser
+        dp.send_msg(parser.OFPFlowMod(
+            datapath=dp, priority=priority, match=match,
+            command=ofp.OFPFC_DELETE))

@@ -137,11 +137,11 @@ Ubuntu VM: ~/pes_projects/CN_project/pong          (a copy, e.g. via git clone o
 git clone <your-github-url> ~/pes_projects/CN_project/pong
 
 # Option B — copy over a shared folder (VirtualBox/UTM/Parallels shared folder)
-cp -r /Volumes/<shared>/pong ~/CN_project/
+cp -r /Volumes/<shared>/pong ~/pes_projects/CN_project/
 
 # Option C — scp over the network
 scp -r /Users/apple/Desktop/gold/code_files/side_projects/pes_projects/CN_project/pong \
-      amith@<vm-ip>:~/CN_project/
+      amith@<vm-ip>:~/pes_projects/CN_project/
 ```
 
 > ⚠️ Do **not** run the game from a VirtualBox/Parallels *shared folder* inside the VM. Shared

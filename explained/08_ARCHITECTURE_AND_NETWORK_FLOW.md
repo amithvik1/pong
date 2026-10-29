@@ -79,11 +79,11 @@ s1-eth6  →  s2-eth3        ← THE BOTTLENECK (HTB, 10 Mbit/s, 2 queues)
    │                            other packets → queue 2 (1 Mbit/s min, 1 Mbit/s max)
    │                            background queue is FULL → game queue stays EMPTY
    ▼
-s2-eth1  →  s2-eth10
+s2-eth3  →  s2-eth1
    │
    │   ★ SWITCH s2 LOOKS AT THE PACKET ★
    │     match udp_dst=5000  →  hit
-   │     action: set_queue:1  →  output s2-eth10
+   │     action: set_queue:1  →  output s2-eth1
    ▼
 hs-eth0  →  game/server.py  (on host hs, 10.0.0.10)
    │  reads it, records the time, applies the direction
