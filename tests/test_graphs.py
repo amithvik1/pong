@@ -3,7 +3,7 @@ import tempfile
 import os
 
 class GraphTests(unittest.TestCase):
-    def test_png_exists_for_all_four(self):
+    def test_png_exists_for_all_eight(self):
         # The test data already created PNGs; just verify files exist
         # In real use, graphs.py creates them when run with real aggregate.csv
         # We test the module imports correctly here.
@@ -26,7 +26,8 @@ class GraphTests(unittest.TestCase):
             w.writerow(["mode","bg_label","players","bg_mbps","metric","mean","std","n"])
             w.writerow(["baseline","none",2,0,"delay_mean_ms",5,0.1,3])
         G.main([p, "--out-dir", d])
-        for name in ("delay_by_bg.png", "jitter_by_bg.png", "loss_by_bg.png", "delay_vs_players.png"):
+        for name in ("delay_by_bg.png", "jitter_by_bg.png", "loss_by_bg.png", "delay_vs_players.png",
+                     "server_delay_by_bg.png", "server_p95_by_bg.png", "server_jitter_by_bg.png", "server_loss_by_bg.png"):
             self.assertTrue(os.path.exists(os.path.join(d, name)), name)
 
 if __name__ == "__main__":

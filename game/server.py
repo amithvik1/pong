@@ -48,7 +48,7 @@ class GameServer:
         self.sock.bind((host, port))
         self.sock.settimeout(0.2)
         self.port = self.sock.getsockname()[1]
-        self._ctrl_addr = ("127.0.0.1", C.CTRL_PORT)   # loopback to the Ryu controller
+        self._ctrl_addr = (os.environ.get("GAME_CTRL_HOST", "127.0.0.1"), C.CTRL_PORT)   # loopback / controller host
         self.tick_hz = tick_hz
         self.player_timeout = player_timeout
         self.drop_prob = drop_prob
@@ -105,12 +105,10 @@ class GameServer:
     def _send_ctrl(self, msg: str) -> None:
         """Send a control message to the SDN controller."""
         try:
-            # We send to a 'magic' IP that the controller will intercept,
-            # or just to our own IP on the CTRL_PORT.
-            self.sock.sendto(msg.encode(), (self.sock.getsockname()[0], C.CTRL_PORT))
-            log.info("sent control: %s", msg)
+            self.sock.sendto(msg.encode(), self._ctrl_addr)
+            log.info("sent control: %s to %s", msg, self._ctrl_addr)
         except OSError as e:
-            log.warning("failed to send control message: %s", e)
+            log.warning("failed to send control message to %s: %s", self._ctrl_addr, e)
 
     # --- receive side ----------------------------------------------------------
 
@@ -222,14 +220,16 @@ class GameServer:
 
 
 def main(argv=None) -> None:
+    # Shared helper resolves --drop / GAME_DROP_PROB so server and client stay in sync.
+    argv = list(argv) if argv is not None else None
+    drop_prob, argv = C.drop_prob_from_args(argv)
     ap = argparse.ArgumentParser(prog="python3 -m game.server", description="4-player pong UDP server")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=C.GAME_PORT)
     ap.add_argument("--log", help="CSV of every STATE_UPDATE received (for latency/loss analysis)")
-    ap.add_argument("--drop", type=float, default=float(os.environ.get("GAME_DROP_PROB", "0")),
-                    help="testing aid: drop this fraction of received packets (or env GAME_DROP_PROB)")
     ap.add_argument("--stats-interval", type=float, default=5.0, help="seconds between status lines (0=off)")
     args = ap.parse_args(argv)
+    args.drop = drop_prob
 
     exit_on_signals()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s", datefmt="%H:%M:%S")

@@ -47,6 +47,11 @@ class SeqTracker:
             self.received = 1
             return NEW, 0
 
+        # Sanity bound: reject absurd sequence jumps (e.g. > 100,000) to prevent packet-poisoning / metrics corruption
+        if seq > self.highest and seq - self.highest > 100000:
+            self.stale += 1
+            return STALE, 0
+
         if seq > self.highest:
             shift = seq - self.highest
             self._mask = 1 if shift >= self.WINDOW else ((self._mask << shift) | 1) & full

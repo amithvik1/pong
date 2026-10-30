@@ -35,3 +35,13 @@ class Bot:
         if abs(diff) < DEADBAND:
             return 0
         return 1 if diff > 0 else -1
+
+
+def main() -> None:
+    import sys
+    print("game.bot is an importable bot module. To run a bot client, use:\n  python3 -m game.client --bot", file=sys.stderr)
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

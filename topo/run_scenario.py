@@ -33,10 +33,10 @@ except ImportError:
 
 SUMMARY_CSV = os.path.join(ROOT, "results", "summary.csv")
 STATE_JSON = os.path.join(ROOT, "results", "run_state.json")
-
-WARMUP = S.WARMUP
-TAIL = S.TAIL
-DURATION = S.DURATION
+# NOTE: WARMUP/TAIL/DURATION are NOT copied to module globals here.  main()
+# reads them from the parsed args (which default to S.WARMUP/S.TAIL/S.DURATION
+# but can be overridden on the CLI), so a future scenarios.py override or a
+# --warmup/--tail/--duration flag is always honoured.
 
 
 def parse_args():
@@ -51,6 +51,12 @@ def parse_args():
                     help="CSV to append results to")
     ap.add_argument("--state", default=STATE_JSON,
                     help="JSON to track progress for --resume")
+    ap.add_argument("--warmup", type=float, default=S.WARMUP,
+                    help="warmup seconds before timing starts (default: from scenarios.py)")
+    ap.add_argument("--tail", type=float, default=S.TAIL,
+                    help="tail seconds after background traffic stops (default: from scenarios.py)")
+    ap.add_argument("--duration", type=int, default=S.DURATION,
+                    help="seconds to run each scenario (default: from scenarios.py)")
     return ap.parse_args()
 
 
@@ -143,16 +149,23 @@ def compute_aggregate_metrics(client_entries: List[dict], server_entries: List[d
 
 
 def _find_ryu_manager() -> str:
+    """Locate the ryu-manager binary.
+
+    Order of resolution: RYU_MANAGER env var, SUDO_USER's home, current user's
+    home, then PATH.  No hardcoded /home/<user> fallback — if none of these
+    resolve, the caller exits with a helpful message.
+    """
     env_path = os.environ.get("RYU_MANAGER", "")
     sudo_user = os.environ.get("SUDO_USER", "")
     sudo_ryu = os.path.expanduser(f"~{sudo_user}/ryu-env/bin/ryu-manager") if sudo_user else ""
     for cand in (env_path,
                  sudo_ryu,
                  os.path.expanduser("~/ryu-env/bin/ryu-manager"),
-                 "/home/amith/ryu-env/bin/ryu-manager",
                  shutil.which("ryu-manager") or ""):
         if cand and os.path.exists(cand):
             return cand
+    # Fall back to the user's home, even if it doesn't exist yet — the caller
+    # will print a clear "not found" error instead of silently failing.
     return os.path.expanduser("~/ryu-env/bin/ryu-manager")
 
 
@@ -305,7 +318,7 @@ def main() -> int:
             print(f"{'='*60}")
             net, procs = build_network("baseline")
             try:
-                run_mode(net, procs, by_mode["baseline"], WARMUP, TAIL, DURATION,
+                run_mode(net, procs, by_mode["baseline"], args.warmup, args.tail, args.duration,
                          args.summary, args.state, state)
             finally:
                 procs.stop_all()
@@ -321,7 +334,7 @@ def main() -> int:
 
             net, procs = build_network("priority")
             try:
-                run_mode(net, procs, by_mode["priority"], WARMUP, TAIL, DURATION,
+                run_mode(net, procs, by_mode["priority"], args.warmup, args.tail, args.duration,
                          args.summary, args.state, state)
             finally:
                 procs.stop_all()

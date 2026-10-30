@@ -59,7 +59,7 @@ class QosSwitch(BaselineSwitch):
 
         # --- D2: Reactive congestion handling -------------------------------
         self._stats_lock = threading.Lock()
-        self._prev_stats = {}          # dp_id -> now_bytes
+        self._prev_stats = {}          # dp_id -> (now_bytes, last_time.monotonic())
         self._bg_shrunk = False
         self._stats_timer = threading.Thread(target=self._stats_loop, daemon=True)
         self._stats_timer.start()
@@ -117,14 +117,19 @@ class QosSwitch(BaselineSwitch):
                 if p.port_no != dp.ofproto.OFPP_LOCAL:
                     now_bytes += p.tx_bytes + p.rx_bytes
             key = dp.id
+            now = time.monotonic()
             prev = self._prev_stats.get(key)
-            self._prev_stats[key] = now_bytes
+            self._prev_stats[key] = (now_bytes, now)
             if prev is None:
                 return
-            delta = now_bytes - prev
+            prev_bytes, prev_t = prev
+            delta = now_bytes - prev_bytes
             if delta < 0:
                 delta = 0
-            bps = delta * 8 / 2.0
+            dt = now - prev_t
+            if dt <= 0:
+                return
+            bps = delta * 8 / dt
             self.logger.info("STATS: dp=%016x total throughput %.2f Mbit/s", key, bps / 1e6)
             if bps > 8_000_000 and not self._bg_shrunk:
                 self._bg_shrunk = True
@@ -143,8 +148,9 @@ class QosSwitch(BaselineSwitch):
         for dp in list(getattr(self, "datapaths", {}).values()):
             parser = dp.ofproto_parser
             for field in ("ipv4_dst", "ipv4_src"):
+                udp_field = "udp_dst" if field == "ipv4_dst" else "udp_src"
                 match = parser.OFPMatch(eth_type=ETH_TYPE_IP, ip_proto=IP_PROTO_UDP,
-                                        **{field: ip, "udp_dst": C.GAME_PORT})
+                                        **{field: ip, udp_field: C.GAME_PORT})
                 self.add_flow(dp, PRIO_GAME + 5, match,
                               [parser.OFPActionSetQueue(C.QUEUE_GAME),
                                parser.OFPActionOutput(dp.ofproto.OFPP_FLOOD)])
@@ -155,8 +161,9 @@ class QosSwitch(BaselineSwitch):
         for dp in list(getattr(self, "datapaths", {}).values()):
             parser = dp.ofproto_parser
             for field in ("ipv4_dst", "ipv4_src"):
+                udp_field = "udp_dst" if field == "ipv4_dst" else "udp_src"
                 match = parser.OFPMatch(eth_type=ETH_TYPE_IP, ip_proto=IP_PROTO_UDP,
-                                        **{field: ip, "udp_dst": C.GAME_PORT})
+                                        **{field: ip, udp_field: C.GAME_PORT})
                 self.delete_flow(dp, PRIO_GAME + 5, match)
             self.logger.info("CTRL: removed per-player rules for %s on dp=%016x", ip, dp.id)
 
@@ -178,19 +185,32 @@ class QosSwitch(BaselineSwitch):
 
     def _set_queue_rate(self, dp, queue_id, min_rate):
         """Modify an existing OVS queue's min-rate via ovs-vsctl (runs as a subprocess)."""
-        for port in self._bottleneck_ports(dp):
-            subprocess.run(["ovs-vsctl", "set", "queue", "q%d" % queue_id,
-                            "other-config:min-rate=%d" % min_rate],
-                           capture_output=True)
+        ports = self._bottleneck_ports(dp)
+        if not ports:
+            self.logger.warning("QUEUE: no bottleneck port matched on dp=%016x — check PLAYER_SIDE_COUNT", dp.id)
+            return
+        for port in ports:
+            res = subprocess.run(["ovs-vsctl", "set", "queue", "q%d" % queue_id,
+                                  "other-config:min-rate=%d" % min_rate],
+                                 capture_output=True, text=True)
+            if res.returncode != 0:
+                self.logger.warning("QUEUE: failed to set queue q%d min-rate: %s", queue_id, res.stderr.strip())
         self.logger.info("QUEUE: set queue %d min-rate to %d on dp=%016x",
                          queue_id, min_rate, dp.id)
 
     @staticmethod
     def _bottleneck_ports(dp):
-        """Return port names on this datapath that carry the bottleneck link."""
+        """Return port names on this datapath that carry the bottleneck link.
+
+        The port names are derived from the host counts in game/config.py
+        (PLAYER_SIDE_COUNT / SERVER_SIDE_COUNT), which must stay in sync with
+        the lists in topo/topology.py.  If you add or remove a host on either
+        side, update those counts — otherwise this returns [] and reactive
+        congestion handling silently no-ops.
+        """
         return [p.name for p in dp.ports.values()
                 if hasattr(p, "name")
-                and ("eth6" in p.name or "eth3" in p.name)]
+                and p.name in (C.BOTTLENECK_PORT_S1, C.BOTTLENECK_PORT_S2)]
 
     # ------------------------------------------------------------------ shutdown
 

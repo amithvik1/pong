@@ -223,6 +223,9 @@ class GameClient:
 
 
 def main(argv=None) -> int:
+    # Shared helper resolves --drop / GAME_DROP_PROB so server and client stay in sync.
+    argv = list(argv) if argv is not None else None
+    drop_prob, argv = C.drop_prob_from_args(argv)
     ap = argparse.ArgumentParser(prog="python3 -m game.client", description="4-player pong client")
     ap.add_argument("--server", default="127.0.0.1", help="server IP or name")
     ap.add_argument("--port", type=int, default=C.GAME_PORT)
@@ -238,9 +241,8 @@ def main(argv=None) -> int:
                              help="move only while the key repeats (default)")
     ap.add_argument("--ascii", action="store_true", help="plain ASCII graphics (for terminals without Unicode)")
     ap.add_argument("--seed", type=int, help="bot random seed")
-    ap.add_argument("--drop", type=float, default=float(os.environ.get("GAME_DROP_PROB", "0")),
-                    help="testing aid: drop this fraction of received packets (or env GAME_DROP_PROB)")
     args = ap.parse_args(argv)
+    args.drop = drop_prob
 
     if args.headless and not args.bot:
         ap.error("--headless needs --bot (a human cannot play without the UI)")

@@ -168,9 +168,9 @@ def configure_qos(net, mode="plain", rate=BOTTLENECK_BPS):
             _ovs("--", "set", "port", port, "qos=@q",
                  "--", "--id=@q", "create", "qos", "type=linux-htb", "other-config:max-rate=%d" % rate,
                  "queues:%d=@g" % QUEUE_GAME, "queues:%d=@b" % QUEUE_BG,
-                 "--", "--id=@g", "create", "queue", "other-config:min-rate=%d" % GAME_MIN_BPS,
+                 "--", "--id=q%d" % QUEUE_GAME, "create", "queue", "other-config:min-rate=%d" % GAME_MIN_BPS,
                  "other-config:max-rate=%d" % rate, "other-config:priority=0",
-                 "--", "--id=@b", "create", "queue", "other-config:min-rate=%d" % BG_MIN_BPS,
+                 "--", "--id=q%d" % QUEUE_BG, "create", "queue", "other-config:min-rate=%d" % BG_MIN_BPS,
                  "other-config:max-rate=%d" % rate, "other-config:priority=1")
         else:
             raise ValueError("unknown qos mode %r" % mode)
@@ -196,8 +196,16 @@ def diagnostics(net, qos, controller):
         print("  %-6s %-24s %9s %12s %9s" % ("port", "class", "packets", "bytes", "dropped"))
         for _sw, port in bottleneck_ports(net):
             out = subprocess.run(["tc", "-s", "class", "show", "dev", port], capture_output=True, text=True).stdout
-            for cid, nbytes, pkts, drops in re.findall(
-                    r"class htb (1:\w+) .*?\n\s*Sent (\d+) bytes (\d+) pkt \(dropped (\d+)", out):
+            # iproute2 output varies across kernels; the strict pattern is the
+            # common Ubuntu 20.04+ form, the fallback matches older / alternate
+            # layouts.  An empty result is not an error — we just print nothing.
+            rows = re.findall(
+                r"class htb (1:\w+) .*?\n\s*Sent (\d+) bytes (\d+) pkt \(dropped (\d+)", out)
+            if not rows:
+                rows = re.findall(
+                    r"class htb (1:\w+).*?Sent (\d+) bytes (\d+) pkt.*?dropped (\d+)",
+                    out, re.DOTALL)
+            for cid, nbytes, pkts, drops in rows:
                 print("  %-6s %-24s %9s %12s %9s" % (port, CLASS_LABELS.get(cid, cid), pkts, nbytes, drops))
     if controller == "remote":
         print("\nQoS flows installed by the controller on s1:")

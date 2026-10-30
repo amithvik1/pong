@@ -94,28 +94,31 @@ def generate_markdown(aggregate_rows: List[dict], md_path: str, summary_path: st
             float(r["mean"]), float(r["std"]), r["n"]))
     lines.append("")
 
-    # Add improvement table (only for delay_mean_ms)
-    lines.append("## Baseline vs Priority — delay improvement")
-    lines.append("")
-    lines.append("| bg | players | baseline mean | priority mean | factor |")
-    lines.append("|---|---|---|---|---|")
-    # Pair up by (bg, players, metric=delay_mean_ms)
-    baseline = {}
-    priority = {}
-    for r in agg:
-        if r["metric"] == "delay_mean_ms":
-            key = (r["bg_label"], int(r["players"]))
-            if r["mode"] == "baseline":
-                baseline[key] = float(r["mean"])
-            else:
-                priority[key] = float(r["mean"])
-    for key in sorted(baseline):
-        if key in priority:
-            b = baseline[key]
-            p = priority[key]
-            factor = improvement_factor(b, p)
-            lines.append("| %s | %d | %.3f | %.3f | %.2fx |" % (key[0], key[1], b, p, factor))
-    lines.append("")
+    # Improvement tables for every collected metric (delay, jitter, loss).
+    # The SDN QoS claim is "priority mode reduces jitter/loss" — a delay-only
+    # table does not tell that story.
+    METRICS = ("delay_mean_ms", "jitter_ms", "loss_pct")
+    for metric in METRICS:
+        lines.append("## Baseline vs Priority — %s improvement" % metric)
+        lines.append("")
+        lines.append("| bg | players | baseline mean | priority mean | factor |")
+        lines.append("|---|---|---|---|---|")
+        baseline = {}
+        priority = {}
+        for r in agg:
+            if r["metric"] == metric:
+                key = (r["bg_label"], int(r["players"]))
+                if r["mode"] == "baseline":
+                    baseline[key] = float(r["mean"])
+                else:
+                    priority[key] = float(r["mean"])
+        for key in sorted(baseline):
+            if key in priority:
+                b = baseline[key]
+                p = priority[key]
+                factor = improvement_factor(b, p)
+                lines.append("| %s | %d | %.3f | %.3f | %.2fx |" % (key[0], key[1], b, p, factor))
+        lines.append("")
 
     with open(md_path, "w") as f:
         f.write("\n".join(lines))

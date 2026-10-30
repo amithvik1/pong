@@ -2,6 +2,8 @@
 """Clean up old experiment results.
 
 Deletes raw CSV files older than --keep days, or removes all results if --all.
+Note: --keep 0 (the default) disables time-based deletion entirely, making the
+script a safe no-op unless --all or an explicit --keep N > 0 is provided.
 
     python3 scripts/clean_results.py --keep 7   # keep last 7 days
     python3 scripts/clean_results.py --all       # delete everything
@@ -16,7 +18,8 @@ import time
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results-dir", default="results", help="results folder to clean")
-    ap.add_argument("--keep", type=int, default=0, help="keep only raw/ files newer than N days")
+    ap.add_argument("--keep", type=int, default=0,
+                    help="keep only raw/ files newer than N days (default: 0 = disabled / no-op)")
     ap.add_argument("--all", action="store_true", help="delete ALL results (raw/, summary.csv, graphs/)")
     ap.add_argument("--dry-run", action="store_true", help="show what would be deleted")
     args = ap.parse_args()

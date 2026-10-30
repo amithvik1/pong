@@ -39,6 +39,9 @@ MAX_SIDE = 72                # arena side in pixels (36 terminal rows)
 PADDLE_PX = 2                # paddle thickness in pixels
 
 # --- logical colours (mapped to terminal colours by Colors) ----------------------
+# NOTE: P1..P4 correspond to player slots 0..3 (color ID = slot + 1).
+# The other IDs (BALL, WALL, etc.) are internal to this TUI module and independent
+# of protocol message constants or game state phase constants.
 BG = 0
 P1, P2, P3, P4 = 1, 2, 3, 4          # player i uses colour P1 + i
 BALL, WALL = 5, 6

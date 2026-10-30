@@ -128,6 +128,20 @@ class LoopbackTests(unittest.TestCase):
         c = self.make_client(start=False)    # still serving normally
         self.assertIsNotNone(c.player_id)
 
+    def test_send_ctrl_destination_is_loopback(self):
+        from unittest.mock import MagicMock
+        from game import config as C
+        s = GameServer("0.0.0.0", 0)
+        orig_sock = s.sock
+        try:
+            mock_sock = MagicMock()
+            s.sock = mock_sock
+            s._send_ctrl("JOIN 10.0.0.1 0")
+            mock_sock.sendto.assert_called_once_with(b"JOIN 10.0.0.1 0", ("127.0.0.1", C.CTRL_PORT))
+        finally:
+            orig_sock.close()
+            s.stop()
+
     def test_logs_are_written(self):
         import csv
         import tempfile

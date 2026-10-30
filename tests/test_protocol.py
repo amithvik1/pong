@@ -131,11 +131,11 @@ class SeqTrackerTests(unittest.TestCase):
         self.assertEqual(t.observe(1), (STALE, 0))
         self.assertEqual(t.stale, 1)
 
-    def test_huge_jump_is_cheap_and_correct(self):
+    def test_huge_jump_is_rejected_as_stale(self):
         t = SeqTracker()
         t.observe(0)
-        self.assertEqual(t.observe(2 ** 31), (NEW, 2 ** 31 - 1))
-        self.assertEqual(t.observe(2 ** 31), (DUPLICATE, 0))
+        self.assertEqual(t.observe(2 ** 31), (STALE, 0))
+        self.assertEqual(t.stale, 1)
 
     def test_reset(self):
         t = SeqTracker()

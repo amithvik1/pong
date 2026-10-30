@@ -1,18 +1,27 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+# game.config must always import — it has no third-party deps.  If it fails,
+# that is a real bug, not an "environment unavailable" skip.
+from game import config as C
+
 try:
-    from game import config as C
     from sdn.baseline_switch import BaselineSwitch
     from sdn.qos_switch import QosSwitch, PRIO_GAME
-except ImportError:
+except ImportError as e:
+    # Ryu (sdn.qos_switch) is optional — expected to be missing on the dev host.
     QosSwitch = None
+    _RYU_IMPORT_ERROR = e
+else:
+    _RYU_IMPORT_ERROR = None
 
 
 class TestQosDynamicFeatures(unittest.TestCase):
     def setUp(self):
         if QosSwitch is None:
-            self.skipTest("Ryu environment not available on this host")
+            # Only skip when Ryu itself is missing — a real import error in
+            # sdn.baseline_switch or sdn.qos_switch would surface here.
+            self.skipTest("Ryu environment not available on this host: %s" % _RYU_IMPORT_ERROR)
     @patch("sdn.qos_switch.threading.Thread")
     @patch("sdn.qos_switch.socket.socket")
     def test_install_and_remove_player_rules(self, mock_sock, mock_thread):
@@ -48,21 +57,21 @@ class TestQosDynamicFeatures(unittest.TestCase):
         mock_dp = MagicMock()
         mock_dp.id = 1
         port1 = MagicMock()
-        port1.name = "s1-eth6"
+        port1.name = "s1-" + C.BOTTLENECK_PORT_S1
         mock_dp.ports = {1: port1}
         switch.datapaths = {1: mock_dp}
 
         switch._shrink_background()
         mock_run.assert_called_with(
             ["ovs-vsctl", "set", "queue", "q2", "other-config:min-rate=500000"],
-            capture_output=True,
+            capture_output=True, text=True,
         )
 
         mock_run.reset_mock()
         switch._restore_background()
         mock_run.assert_called_with(
             ["ovs-vsctl", "set", "queue", "q2", "other-config:min-rate=1000000"],
-            capture_output=True,
+            capture_output=True, text=True,
         )
 
 
