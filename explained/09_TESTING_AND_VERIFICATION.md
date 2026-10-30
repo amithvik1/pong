@@ -7,7 +7,7 @@
 
 ## 1. The test suite
 
-**107 unit tests**, all passing once `matplotlib` is installed. You run them with one command:
+**110 unit tests**, all passing once the optional dependencies are present. You run them with one command:
 
 ```bash
 # Mac or VM — project root
@@ -16,19 +16,20 @@ python3 -m unittest discover -v
 
 | What you see | What it means |
 |---|---|
-| `Ran 107 tests in 10.234s` | Collection worked — all `tests/test_*.py` were found |
-| `OK` (after matplotlib is installed) | Every test passed |
-| `FAILED (errors=2)` before matplotlib install | Exactly two tests could not import matplotlib (`tests.test_graphs`) — harmless |
+| `Ran 110 tests in ~10s` | Collection worked — all `tests/test_*.py` were found |
+| `OK (skipped=3)` | Every runnable test passed; 3 need optional deps (below) |
+| `skipped 'matplotlib not installed'` | `tests.test_graphs` graph test — install matplotlib to run it |
+| `skipped "Ryu environment not available"` | The 2 `tests.test_qos_dynamic` tests — run them in the VM / Ryu venv |
 
 ### 1.1 Where the tests live
 
-All **11** test files are under `tests/`. Together they contain **107** `def test_(...)`
+All **12** test files are under `tests/`. Together they contain **110** `def test_(...)`
 definitions:
 
 | # | File | Class | `def test_` count | What it proves |
 |---|---|---|---|---|
 | 1 | `test_protocol.py` | `ProtocolTests` (+ `SeqTrackerTests`) | 18 | Encoder/decoder round trip for every message type; sequence-number classification (new / late / duplicate / stale) |
-| 2 | `test_loopback.py` | `LoopbackTests` | 8 | End-to-end: four bots agree, a fifth is rejected, duplicate join, join retries, packet loss detected and the game still continues, a silent player times out, the server survives garbage packets, logs are written |
+| 2 | `test_loopback.py` | `LoopbackTests` | 9 | End-to-end: four bots agree, a fifth is rejected, duplicate join, join retries, packet loss detected and the game still continues, a silent player times out, the server survives garbage packets, logs are written |
 | 3 | `test_menu.py` | `EditTests` / `CycleTests` / `WrapTests` / `DrawTests` | 15 | Menu selection, settings cycle, drawing the title screen |
 | 4 | `test_state.py` | `StateTests` | 11 | Game state machine, scoring, collisions, hit detection |
 | 5 | `test_ui.py` | `LayoutTests` / `RenderTests` / `CellTests` / `InputTests` / `TextTests` | 21 | Curses UI layout, rendering cells, keyboard input cell mapping |
@@ -37,28 +38,30 @@ definitions:
 | 8 | `test_report.py` | `ReportTests` | 7 | Aggregation into CSV and markdown |
 | 9 | `test_run_scenario.py` | `RunScenarioStateTests` | 4 | State save / load in `results/run_state.json` |
 | 10 | `test_scenarios.py` | `ScenarioMatrixTests` | 5 | Scenario names map to output folders; missing files raise `FileNotFoundError` |
-| 11 | `test_graphs.py` | `GraphTests` | 2 | Graph functions don't crash (need matplotlib)
+| 11 | `test_graphs.py` | `GraphTests` | 2 | Graph functions don't crash (needs matplotlib) |
+| 12 | `test_qos_dynamic.py` | `TestQosDynamicFeatures` | 2 | JOIN/LEAVE installs & removes per-player rules; congestion resizing shrinks/restores the background queue (needs Ryu) |
 
-### 1.2 The 2 errors — what they really are
+### 1.2 The 3 skips — what they really are
 
-```python
-Error: ModuleNotFoundError: No module named 'matplotlib'
-at tests.test_graphs.GraphTests.test_png_exists_for_all_four
-at tests.test_graphs.GraphTests.test_plot_functions_run_without_crash
+```
+tests.test_graphs.GraphTests.test_plot_functions_run_without_crash ... skipped 'matplotlib not installed'
+tests.test_qos_dynamic.TestQosDynamicFeatures.test_congestion_resizing ... skipped 'Ryu environment not available'
+tests.test_qos_dynamic.TestQosDynamicFeatures.test_install_and_remove_player_rules ... skipped 'Ryu environment not available'
 ```
 
-These two tests **require matplotlib** (`analysis/graphs.py` imports it at startup). They error
-before matplotlib can be imported. Install it and they pass. **This is not a code problem.**
+These are **optional-dependency skips, not failures**. `analysis/graphs.py` needs matplotlib; the
+controller tests need Ryu. Both test modules guard their imports and call `skipTest`, so the rest
+of the suite runs anywhere. **This is not a code problem.**
 
 **Quick way to see this yourself:**
 
 ```bash
-pip list 2>/dev/null | grep -i matplotlib   # empty → not installed
-python3 -m pip install "matplotlib>=3.7.0"    # then re-run: python3 -m unittest discover -v
+pip list 2>/dev/null | grep -iE "matplotlib|ryu"   # empty → not installed
+python3 -m pip install "matplotlib>=3.7.0"          # then re-run: python3 -m unittest discover -v
 ```
 
-> If your global Python does not have matplotlib but you only want the game tested, the other
-> 105 tests still pass — the game needs no third-party packages.
+> If your global Python has neither matplotlib nor Ryu, the other 107 tests still pass — the game
+> needs no third-party packages.
 
 ---
 
@@ -91,6 +94,8 @@ claim in the documentation, this table says which test proves it and where.
 | Scenario names map to output folders | `ScenarioMatrixTests` | `tests/test_scenarios.py` |
 | `--resume` state is saved and loaded | `RunScenarioStateTests` | `tests/test_run_scenario.py` |
 | Graph functions don't crash | `GraphTests` | `tests/test_graphs.py` (needs matplotlib) |
+| JOIN installs a per-player rule; LEAVE removes it | `test_install_and_remove_player_rules` | `tests/test_qos_dynamic.py` (needs Ryu) |
+| Congestion shrinks the background queue, recovery restores it | `test_congestion_resizing` | `tests/test_qos_dynamic.py` (needs Ryu) |
 | Menu and UI work | `test_menu.py`, `test_ui.py` | 36 tests |
 
 **Cover it in the viva by naming one per row.** That proves you actually ran the tests.
@@ -103,8 +108,8 @@ Run each one and check the output. Here is the reproducible proof set.
 
 | Command (from file 03) | Expected | Proof |
 |---|---|---|
-| `python3 -m unittest discover -v` (Mac, matplotlib installed) | `Ran 107 tests … OK` | File 09 §1 |
-| `python3 -m unittest discover -v` (Mac, no matplotlib) | `errors=2` `tests.test_graphs` | File 09 §1.2 |
+| `python3 -m unittest discover -v` (Mac, optional deps missing) | `Ran 110 tests … OK (skipped=3)` | File 09 §1 |
+| `python3 -m unittest discover -v` (Mac, all deps installed) | `Ran 110 tests … OK` | File 09 §1 |
 | `python3 -m game.server --help` | shows usage with `--host`, `--port`, `--log`, `--drop`, `--stats-interval` | flag names are real |
 | `python3 -m game.client --help` | shows `--server`, `--port`, `--bot`, `--headless`, `--duration`, `--log`, `--seed`, `--drop` | flags match the code |
 | `python3 -m topo.scenarios --list` | `54 scenarios (2 modes x 3 bg x 3 players x 3 repeats)` | matrix count is right |

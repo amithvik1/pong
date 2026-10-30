@@ -230,8 +230,10 @@ file (`analysis/graphs.py:22-24`) which raises a clear `SystemExit` if it is mis
 
 ### 4.5 `tests/`, `scripts/`, `results/`
 
-- `tests/` — 107 unit tests across 11 files. `test_loopback.py` is the important one: it runs a real
+- `tests/` — 110 unit tests across 12 files. `test_loopback.py` is the important one: it runs a real
   server and real clients over real UDP sockets on `127.0.0.1` and asserts the game works.
+  `test_qos_dynamic.py` covers the controller's JOIN/LEAVE rules and congestion resizing, and
+  skips itself when Ryu is not installed.
 - `scripts/clean_results.py` — housekeeping for `results/raw/`.
 - `results/` — the output directory: `summary.csv`, `run_state.json`, `first_comparison.md`,
   `raw/<scenario>/…`. `results/raw/` is git-ignored.
@@ -281,10 +283,11 @@ At runtime, four kinds of process exist:
 3. **Ryu controller** — talks OpenFlow to the switches, programs flow rules.
 4. **Mininet + OVS** — the virtual network the game packets actually cross.
 
-The game processes talk **only to each other over UDP port 5000**. The controller talks
-**only to the switches over OpenFlow on TCP 6653**. The two never exchange a single byte of game
-data. Their only coupling is the shared constant `GAME_PORT = 5000` and the shared knowledge of
-which OVS queue IDs exist (1 = game, 2 = background).
+The game processes exchange **game traffic over UDP port 5000**. The controller talks to the
+switches over **OpenFlow on TCP 6653**. Separately, the server sends JOIN/LEAVE control messages
+to the controller on **UDP 5001** so the controller can install per-player rules — those messages
+carry player identity only, never game state. Their other coupling is the shared constant
+`GAME_PORT = 5000` and the shared knowledge of which OVS queue IDs exist (1 = game, 2 = background).
 
 ---
 
@@ -386,9 +389,9 @@ This is the most important table in this document. Read it before the viva.
 | UDP server binds and listens | **[VERIFIED]** `python3 -m game.server --port 5001` → `server: listening on UDP 5001` |
 | Client joins and receives broadcasts | **[VERIFIED]** `joined as player 0`, `received 123 broadcasts, lost 0 (0.00%), avg rtt 0.26 ms` |
 | Second client joins (multiplayer) | **[VERIFIED]** `joined as player 0` again (slot freed by the first client's clean LEAVE) |
-| Loss detection & "latest state wins" | **[VERIFIED]** 105/107 unit tests pass; the 2 failures are `matplotlib`-import errors only |
+| Loss detection & "latest state wins" | **[VERIFIED]** 110 unit tests pass, 3 skipped (1 matplotlib, 2 Ryu-only) |
 | CSV logging + metrics | **[VERIFIED]** `python3 -m analysis.metrics results/raw/smoke/*.csv` produced the table in `09_…` §7 |
-| Protocol encode/decode | **[VERIFIED]** `tests/test_protocol.py` — 9 tests, all pass |
+| Protocol encode/decode | **[VERIFIED]** `tests/test_protocol.py` — 18 tests, all pass |
 
 ### 8.2 Implemented in code but **not verified in this environment**
 
@@ -469,8 +472,10 @@ Mininet addressing (`topo/topology.py:73-74`): `h1=10.0.0.1`, `h2=10.0.0.2`, `h3
    > without the controller in the path.
 
 3. **"What is the weakest part of your project?"**
-   > The controller's priority policy is static, not reactive. The assignment asked for dynamic
-   > re-prioritisation based on port statistics, and the server→controller notification hooks
-   > (`GameServer.on_join` / `on_leave`) are still empty stubs. We achieved the same *outcome*
-   > with a static `set_queue` + HTB `min-rate` guarantee, but the reactive version is not done.
+   > The reactive policy is threshold-based: it polls aggregate port throughput every 2 s and
+   > resizes the background queue when throughput crosses 8 Mbps up / 4 Mbps down, so it reacts
+   > to congestion rather than predicting it. The adaptive rule installation and the
+   > server→controller JOIN/LEAVE hooks are implemented; the remaining gap is that the full
+   > 54-cell experiment matrix has not been run end-to-end — only a subset of scenarios has
+   > measurements.
    > Also, the 54-scenario matrix has only had 1 cell executed so far.
